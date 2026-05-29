@@ -116,6 +116,7 @@ public function show(AdsProxyClient $client)
 
 | Variável | Default | Descrição |
 |---|---|---|
+| `HONGAYETU_ADS_ENABLED` | `true` | **Kill switch.** Quando `false`, todos os endpoints devolvem `data:null` sem chamar a central. Pausa imediata sem deploy nem revogar tokens. |
 | `HONGAYETU_ADS_BASE_URL` | `https://anuncios.hongayetu.com/api/v2/ads` | URL base da API v2 (sem barra final). |
 | `HONGAYETU_ADS_TOKEN` | — | **Obrigatório**. Bearer token do ConnectedProject. |
 | `HONGAYETU_ADS_TIMEOUT` | `8` | Timeout HTTP em segundos. |

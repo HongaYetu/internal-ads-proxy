@@ -13,6 +13,10 @@ class AdsProxyController extends Controller
 
     public function serve(Request $request): JsonResponse
     {
+        if ($this->desligado()) {
+            return $this->respostaDesligado();
+        }
+
         $dados = $request->validate([
             'espaco_id' => 'required|integer',
             'formato_id' => 'nullable|integer',
@@ -28,6 +32,10 @@ class AdsProxyController extends Controller
 
     public function impression(Request $request): JsonResponse
     {
+        if ($this->desligado()) {
+            return $this->respostaDesligado();
+        }
+
         $dados = $request->validate([
             'token' => 'required|string',
             'device_id' => 'nullable|string',
@@ -39,12 +47,30 @@ class AdsProxyController extends Controller
 
     public function click(Request $request): JsonResponse
     {
+        if ($this->desligado()) {
+            return $this->respostaDesligado();
+        }
+
         $dados = $request->validate([
             'token' => 'required|string',
             'device_id' => 'nullable|string',
         ]);
 
         return $this->forward($this->client->click($dados));
+    }
+
+    protected function desligado(): bool
+    {
+        return ! (bool) config('ads-proxy.enabled', true);
+    }
+
+    protected function respostaDesligado(): JsonResponse
+    {
+        return response()->json([
+            'estado' => 'ok',
+            'data' => null,
+            'meta' => ['reason' => 'ads_disabled'],
+        ], 200);
     }
 
     protected function forward($resposta): JsonResponse

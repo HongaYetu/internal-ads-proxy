@@ -3,6 +3,17 @@
 return [
     /*
     |--------------------------------------------------------------------------
+    | Kill switch
+    |--------------------------------------------------------------------------
+    | Quando `false`, todos os endpoints proxy devolvem `{estado:ok, data:null}`
+    | sem chamar a central. O SDK degrada graciosamente (não renderiza anúncios).
+    | Útil para incidentes em produção, A/B testing, ou pausa temporária sem
+    | revogar tokens nem fazer deploy do app.
+    */
+    'enabled' => (bool) env('HONGAYETU_ADS_ENABLED', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Upstream — HongaYetu Ads API v2
     |--------------------------------------------------------------------------
     | URL base da central (sem `/serve` etc — só até `/api/v2/ads`).

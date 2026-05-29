@@ -4,6 +4,11 @@ Todas as alterações relevantes deste package estão documentadas aqui.
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/) e o versionamento segue [SemVer](https://semver.org/) — com a ressalva (típica de packages `internal-*`) que pode haver breaking changes em releases minor se sincronizados com a central.
 
+## [0.2.0] — 2026-05-29
+
+### Adicionado
+- **Kill switch** via `HONGAYETU_ADS_ENABLED` (default `true`). Quando `false`, todos os endpoints (`serve`/`impression`/`click`) devolvem `{estado:ok, data:null, meta:{reason:'ads_disabled'}}` sem chamar a central. O SDK degrada graciosamente. Útil para incidentes, A/B testing ou pausa temporária sem revogar tokens nem fazer deploy do app.
+
 ## [0.1.0] — 2026-05-29
 
 ### Adicionado
