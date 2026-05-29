@@ -21,6 +21,8 @@ class AdsProxyController extends Controller
             'espaco_slug' => 'required|string|max:64',
             'formato_id' => 'nullable|integer',
             'sublocal' => 'nullable|string',
+            'slot_width' => 'nullable|integer|min:1|max:10000',
+            'slot_height' => 'nullable|integer|min:1|max:10000',
             'device_id' => 'nullable|string|max:128',
             'user_age' => 'nullable|integer|min:0|max:120',
             'geo_country' => 'nullable|string|size:2',

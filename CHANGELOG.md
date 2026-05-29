@@ -4,6 +4,11 @@ Todas as alterações relevantes deste package estão documentadas aqui.
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/) e o versionamento segue [SemVer](https://semver.org/) — com a ressalva (típica de packages `internal-*`) que pode haver breaking changes em releases minor se sincronizados com a central.
 
+## [0.5.0] — 2026-05-29
+
+### Adicionado
+- `serve` aceita `slot_width` e `slot_height` (px) — propagados ao upstream para que a central possa devolver o asset com dimensões mais próximas (asset versioning).
+
 ## [0.4.1] — 2026-05-29
 
 ### Breaking
