@@ -4,6 +4,11 @@ Todas as alterações relevantes deste package estão documentadas aqui.
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/) e o versionamento segue [SemVer](https://semver.org/) — com a ressalva (típica de packages `internal-*`) que pode haver breaking changes em releases minor se sincronizados com a central.
 
+## [0.4.1] — 2026-05-29
+
+### Breaking
+- `serve` deixou de aceitar `origem`. O `espaco_slug` já identifica o app — a central deriva `origem_id` automaticamente.
+
 ## [0.4.0] — 2026-05-29
 
 ### Breaking

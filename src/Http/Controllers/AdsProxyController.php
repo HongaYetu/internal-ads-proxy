@@ -20,7 +20,6 @@ class AdsProxyController extends Controller
         $dados = $request->validate([
             'espaco_slug' => 'required|string|max:64',
             'formato_id' => 'nullable|integer',
-            'origem' => 'nullable|string',
             'sublocal' => 'nullable|string',
             'device_id' => 'nullable|string|max:128',
             'user_age' => 'nullable|integer|min:0|max:120',
