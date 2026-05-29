@@ -4,6 +4,11 @@ Todas as alterações relevantes deste package estão documentadas aqui.
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/) e o versionamento segue [SemVer](https://semver.org/) — com a ressalva (típica de packages `internal-*`) que pode haver breaking changes em releases minor se sincronizados com a central.
 
+## [0.3.0] — 2026-05-29
+
+### Adicionado
+- `serve` aceita `espaco_slug` como alternativa a `espaco_id`. Identificador estável entre ambientes (dev/prod podem ter IDs diferentes).
+
 ## [0.2.0] — 2026-05-29
 
 ### Adicionado
