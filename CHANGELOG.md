@@ -4,6 +4,11 @@ Todas as alterações relevantes deste package estão documentadas aqui.
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/) e o versionamento segue [SemVer](https://semver.org/) — com a ressalva (típica de packages `internal-*`) que pode haver breaking changes em releases minor se sincronizados com a central.
 
+## [0.6.0] — 2026-05-30
+
+### Adicionado
+- `serve` aceita `formatos_aceites: [{largura,altura}, ...]` (opcional, máx. 14 entradas). Quando definido, a central só devolve assets cuja dimensão coincida EXACTAMENTE com uma das entradas; sem match devolve `data: null` (no-fill). Quando omitido mantém o matching aproximado actual.
+
 ## [0.5.0] — 2026-05-29
 
 ### Adicionado
