@@ -13,20 +13,26 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/) e o versionament
 - `impression`, `click` e o `GET /click/{token}` enviam `client_ip` e `client_user_agent` — o IP e o agente de **quem viu o anúncio**, não os deste servidor. Sem eles a central via sempre a mesma origem e o guarda anti-fraude, que conta por IP e por minuto, lia uma aplicação inteira como um aparelho a martelar: a partir de certo tráfego descartava cliques legítimos em silêncio.
 - Aviso no log (`hongayetu.ads_proxy.clique_sem_destino`) sempre que o clique cai no fallback. O fallback é um desfecho legítimo; ser invisível não é — foi o que deixou o `403` acima passar despercebido.
 
+### Nota sobre as versões em falta
+
+As **0.7.0 e 0.8.0 nunca foram publicadas**. Estavam descritas neste ficheiro e o
+código delas ficou na árvore de trabalho, por commitar — e a 0.6.0 tinha commit
+mas ficou sem tag. Quem instalava pelo composer recebia sempre a **0.5.0**, e por
+isso nem as palavras-chave de conteúdo nem o vídeo alguma vez saíram daqui.
+
+O conteúdo das três vai nesta versão, tal como estava escrito:
+
+- **(era a 0.8.0)** `serve` aceita `suporta_video` (boolean, opcional) — o consumidor declara que sabe reproduzir vídeo. A central usa-o para decidir qual dos assets vem marcado com `preferido: true`; a resposta continua a trazer imagem **e** vídeo, pelo que um cliente que não mande o campo (ou não saiba tocar vídeo) continua a receber imagem exactamente como antes.
+- **(era a 0.7.0)** `serve` aceita `keywords: ["tecnologia", ...]` (opcional, máx. 20, 40 caracteres cada) — as palavras-chave do conteúdo que está no ecrã. O proxy limita-se a deixá-las passar; a normalização e a pontuação são da API central. Campanhas sem palavras-chave continuam elegíveis: isto pontua, não filtra.
+- O `POST /video-event` passa a ser encaminhado. O SDK chama-o desde que conta quartis, e este proxy não tinha por onde o mandar.
+
 ### Requer
 - API central com `client_ip`/`client_user_agent` aceites no tracking (>= 2026-08-19).
-
-## [0.8.0] — 2026-08-15
-
-### Adicionado
-- `serve` aceita `suporta_video` (boolean, opcional) — o consumidor declara que sabe reproduzir vídeo. A central usa-o para decidir qual dos assets vem marcado com `preferido: true`; a resposta continua a trazer imagem **e** vídeo, pelo que um cliente que não mande o campo (ou não saiba tocar vídeo) continua a receber imagem exactamente como antes.
-
-## [0.7.0] — 2026-08-14
-
-### Adicionado
-- `serve` aceita `keywords: ["tecnologia", ...]` (opcional, máx. 20, 40 caracteres cada) — as palavras-chave do conteúdo que está no ecrã. O proxy limita-se a deixá-las passar; a normalização e a pontuação são da API central. Campanhas sem palavras-chave continuam elegíveis: isto pontua, não filtra.
+- Quem tinha `^0.7` ou `^0.8` no composer.json **não instalava nada** — essas versões nunca existiram como tag. Passar a `^0.9`.
 
 ## [0.6.0] — 2026-05-30
+
+> Tinha commit e ficou **sem tag** até 2026-08-19. Publicada agora, sobre o commit original.
 
 ### Adicionado
 - `serve` aceita `formatos_aceites: [{largura,altura}, ...]` (opcional, máx. 14 entradas). Quando definido, a central só devolve assets cuja dimensão coincida EXACTAMENTE com uma das entradas; sem match devolve `data: null` (no-fill). Quando omitido mantém o matching aproximado actual.
