@@ -39,6 +39,21 @@ class AdsProxyClient
         return $this->post('/click', $payload);
     }
 
+    public function videoEvent(array $payload): ?Response
+    {
+        return $this->post('/video-event', $payload);
+    }
+
+    /**
+     * Estende com `apresentacao` opcional ao pedido de serve.
+     *
+     * @param  string|null  $caminho  default '/serve' — alguns consumidores podem usar /serve-strict no futuro
+     */
+    public function serveAlt(array $payload, string $caminho = '/serve'): ?Response
+    {
+        return $this->post($caminho, $payload);
+    }
+
     public function isConfigured(): bool
     {
         return ! empty($this->baseUrl) && ! empty($this->token);
