@@ -4,6 +4,28 @@ Todas as alterações relevantes deste package estão documentadas aqui.
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/) e o versionamento segue [SemVer](https://semver.org/) — com a ressalva (típica de packages `internal-*`) que pode haver breaking changes em releases minor se sincronizados com a central.
 
+## [0.9.0] — 2026-08-19
+
+### Corrigido
+- **O clique deixa de aterrar na página inicial.** O `GET /click/{token}` reencaminhava para a central sem `device_id` — porque o pedido nasce neste servidor e não no aparelho — e levava `403`. Caía então no `click_fallback_url`, ou seja, **todos** os cliques desta rede iam parar à home em vez do site do anunciante, e nenhum era contado. A central passou a aceitar a ausência de aparelho no clique (a divergência continua recusada); este package passa a declarar quem é o cliente.
+
+### Adicionado
+- `impression`, `click` e o `GET /click/{token}` enviam `client_ip` e `client_user_agent` — o IP e o agente de **quem viu o anúncio**, não os deste servidor. Sem eles a central via sempre a mesma origem e o guarda anti-fraude, que conta por IP e por minuto, lia uma aplicação inteira como um aparelho a martelar: a partir de certo tráfego descartava cliques legítimos em silêncio.
+- Aviso no log (`hongayetu.ads_proxy.clique_sem_destino`) sempre que o clique cai no fallback. O fallback é um desfecho legítimo; ser invisível não é — foi o que deixou o `403` acima passar despercebido.
+
+### Requer
+- API central com `client_ip`/`client_user_agent` aceites no tracking (>= 2026-08-19).
+
+## [0.8.0] — 2026-08-15
+
+### Adicionado
+- `serve` aceita `suporta_video` (boolean, opcional) — o consumidor declara que sabe reproduzir vídeo. A central usa-o para decidir qual dos assets vem marcado com `preferido: true`; a resposta continua a trazer imagem **e** vídeo, pelo que um cliente que não mande o campo (ou não saiba tocar vídeo) continua a receber imagem exactamente como antes.
+
+## [0.7.0] — 2026-08-14
+
+### Adicionado
+- `serve` aceita `keywords: ["tecnologia", ...]` (opcional, máx. 20, 40 caracteres cada) — as palavras-chave do conteúdo que está no ecrã. O proxy limita-se a deixá-las passar; a normalização e a pontuação são da API central. Campanhas sem palavras-chave continuam elegíveis: isto pontua, não filtra.
+
 ## [0.6.0] — 2026-05-30
 
 ### Adicionado
