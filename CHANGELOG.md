@@ -4,6 +4,14 @@ Todas as alterações relevantes deste package estão documentadas aqui.
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/) e o versionamento segue [SemVer](https://semver.org/) — com a ressalva (típica de packages `internal-*`) que pode haver breaking changes em releases minor se sincronizados com a central.
 
+## [0.9.2] — 2026-10-29
+
+### Corrigido
+- **O limite de pedidos do proxy passa a ter contador próprio.** O `middleware` por omissão trazia `throttle:60,1`, sem nome. Um `throttle:N,M` sem o 3.º argumento usa a mesma chave — o utilizador, ou o domínio e o IP — em **todas** as rotas da app, seja qual for o N: os pedidos dos anúncios de um ecrã (serve, impressões, cliques, vídeo) gastavam o limite das outras rotas. No DesAppego esgotavam o limite do login, e a revisão do Google recusou a app a 28/10/2026. Passa a `throttle:60,1,anuncios`. Teste `AdsProxyLimiteDePedidosTest`.
+
+### Atenção
+- Só muda nada para quem usa a configuração por omissão. Quem publicou o `config/ads-proxy.php` fica com o `middleware` que lá tem — o `mergeConfigFrom` não toca numa chave que a app já define —, e deve dar nome ao `throttle` à mão (ex.: `'throttle:60,1,anuncios'`).
+
 ## [0.9.0] — 2026-08-19
 
 ### Corrigido

@@ -39,7 +39,10 @@ return [
         // 'auth:api', 'auth:web', etc.
         'auth:sanctum',
         // Defesa em profundidade — upstream já tem rate limit por token.
-        'throttle:60,1',
+        // Com nome próprio (o 3.º argumento): sem ele, o contador é o mesmo de
+        // todas as rotas da app com `throttle` sem nome, e os anúncios de um
+        // ecrã gastavam o limite de outras (no DesAppego, o do login).
+        'throttle:60,1,anuncios',
     ],
 
     /*

@@ -39,7 +39,9 @@ Pronto. As rotas ficam disponíveis em:
 - `POST /api/ads-proxy/impression`
 - `POST /api/ads-proxy/click`
 
-Todas com middleware `auth:sanctum` + `throttle:60,1` por defeito.
+Todas com middleware `auth:sanctum` + `throttle:60,1,anuncios` por defeito.
+
+> O limite tem de ter **nome** (o 3.º argumento, `anuncios`). Um `throttle:N,M` sem nome usa a mesma chave — o utilizador, ou o domínio e o IP — em todas as rotas da app, seja qual for o N: os pedidos dos anúncios de um ecrã gastam o limite das outras rotas. No DesAppego esgotavam o limite do login e a revisão do Google recusou a app. Se mudares o middleware, mantém um nome próprio no `throttle`.
 
 ## Configuração do SDK no app mobile
 
@@ -70,7 +72,7 @@ Edita `config/ads-proxy.php`:
 ```php
 return [
     'route_prefix' => 'api/v1/anuncios',  // muda o URL público
-    'middleware' => ['auth:api', 'throttle:120,1'],
+    'middleware' => ['auth:api', 'throttle:120,1,anuncios'], // throttle sempre com nome
     // ...
 ];
 ```
@@ -85,7 +87,7 @@ Depois em `routes/api.php`:
 ```php
 use HongaYetu\InternalAdsProxy\Http\Controllers\AdsProxyController;
 
-Route::middleware(['auth:sanctum'])->prefix('v2/ads')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:60,1,anuncios'])->prefix('v2/ads')->group(function () {
     Route::post('/serve', [AdsProxyController::class, 'serve']);
     Route::post('/impression', [AdsProxyController::class, 'impression']);
     Route::post('/click', [AdsProxyController::class, 'click']);
