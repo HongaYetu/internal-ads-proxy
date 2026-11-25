@@ -156,6 +156,95 @@ Para a maior parte dos serviços basta actualizar o package: o token é o dos an
 | `HONGAYETU_MENSAGENS_ATRIBUTO` | `honga_user_id` | Atributo do utilizador que guarda o id da conta Honga Yetu. |
 | `HONGAYETU_MENSAGENS_SERVICO` | — | Serviço usado quando o pedido não traz `servico`. |
 
+## Mensagens em popup nos sites (desde a 0.11.0)
+
+Para os **sites** dos serviços (Inertia + React, Blade, o que for) não é preciso componente nem `npm`: o package serve um `popup.js` autónomo, que desenha a janela, e uma directiva Blade que o carrega.
+
+### Ligar um site
+
+1. **A linha de Blade**, na página de raiz do site (a `app.blade.php` do Inertia), antes do `</body>` ou no `<head>`:
+
+   ```blade
+   @mensagensPopupHonga
+   ```
+
+   Só escreve alguma coisa quando há sessão (com o id da conta Honga Yetu preenchido) e zonas configuradas: uma etiqueta `<script defer …>`, sem dados da pessoa.
+
+2. **As zonas**, no `config/ads-proxy.php` do serviço (`php artisan vendor:publish --tag=hongayetu-ads-proxy-config`, se ainda não está publicado):
+
+   ```php
+   'mensagens' => [
+       // …
+       'web' => [
+           // …
+           'zonas' => [
+               ['servico' => 'humbi', 'superficie' => 'site', 'caminhos' => ['/'], 'anfitrioes' => ['humbi.ao']],
+               ['servico' => 'humbi-negocio', 'superficie' => 'painel', 'caminhos' => ['/painel'], 'anfitrioes' => ['negocio.humbi.ao']],
+           ],
+       ],
+   ],
+   ```
+
+   | Chave | O que é |
+   |---|---|
+   | `servico` | A chave do serviço na central. |
+   | `superficie` | `site`, `painel` ou `portal`. A `app` é só das rotas da API. |
+   | `caminhos` | Os caminhos **exactos** da página inicial, sem barra final (`/` é a raiz). A janela só abre neles. |
+   | `anfitrioes` | Os domínios da zona. Vazio = qualquer domínio. |
+
+   A primeira zona que casar com o domínio e o caminho da página ganha.
+
+3. **O middleware e o guard**, se o site não usa o guard por omissão:
+
+   ```php
+   'middleware' => ['web', 'auth:cliente', 'throttle:60,1,mensagens-popup-web'], // throttle sempre com nome
+   'guard' => 'cliente', // o guard onde a directiva procura a sessão
+   ```
+
+> ⚠️ **Quem já tem o `config/ads-proxy.php` publicado** copia o bloco `mensagens.web` do config do package para o ficheiro publicado (o `mergeConfigFrom` não junta chaves aninhadas). Sem o bloco valem os valores por omissão, mas não há zonas, e a directiva não escreve nada.
+
+### As rotas
+
+| Rota no serviço | Middleware | O que faz |
+|---|---|---|
+| `GET mensagens-popup?servico=…&superficie=…` | `web`, `auth`, `throttle:60,1,mensagens-popup-web` | A lista. O `servico` e a `superficie` têm de ser os de uma zona (e do domínio dela): de outro modo vem vazia, sem se chamar a central. |
+| `POST mensagens-popup/{mensagem}/eventos` | os mesmos | Os eventos. Fora de uma zona responde «ok» sem chamar a central. |
+| `GET mensagens-popup/popup.js` | `throttle:120,1,mensagens-popup-script` | O script. Público, sem sessão, `Cache-Control: public, max-age=3600`; a directiva põe-lhe `?v=<hash do ficheiro>`. |
+
+A conta sai sempre da sessão (`$request->user()`), como nas rotas da API. Sem sessão, a lista e os eventos respondem `401`.
+
+### O que o script faz
+
+- Pede a lista só na página inicial de uma zona, uma vez por zona e por carregamento. Acompanha a navegação do Inertia (`inertia:navigate`) e o botão de recuar; com `?tutorial` no endereço não abre.
+- Mostra uma mensagem de cada vez: diapositivos (**Anterior** / **Seguinte**), imagem ou vídeo (MP4 e HLS), os botões da mensagem, **Não mostrar mais** nas dispensáveis, «Continuar em N s» nas obrigatórias.
+- Regista `vista`, `fechada`, `dispensada`, `clique`, `video_progresso` e `video_fim`.
+- Vive num Shadow DOM: o CSS do site não o estraga, nem ele o do site. Tema claro/escuro pelo sistema, ou pela classe `dark` / `light` no `<html>`.
+- Nunca parte a página: sem rede, com a central em baixo ou com uma resposta estranha, não aparece nada.
+
+A cor do botão principal acerta-se no CSS do site, se for preciso:
+
+```css
+:root {
+    --mensagens-popup-destaque: #0f766e;        /* fundo do botão principal */
+    --mensagens-popup-sobre-destaque: #fff;      /* texto do botão principal */
+    --mensagens-popup-destaque-escuro: #2dd4bf;  /* os mesmos, no tema escuro */
+    --mensagens-popup-sobre-destaque-escuro: #042f2e;
+}
+```
+
+### A saber
+
+- **Sessão iniciada sem recarregar** (login por uma visita do Inertia): a etiqueta só é escrita quando a página de raiz é desenhada com sessão, por isso as mensagens aparecem no carregamento seguinte.
+- **`Content-Security-Policy`**: o site tem de deixar passar o script do próprio domínio e, para o HLS fora do Safari, `https://cdnjs.cloudflare.com` (o `hls.js` só é carregado quando há um vídeo HLS para tocar; se for bloqueado, fica a capa).
+- **Imagens e vídeos só `https`.**
+
+| Variável | Default | Descrição |
+|---|---|---|
+| `HONGAYETU_MENSAGENS_WEB_ENABLED` | `true` | Kill switch das mensagens nos sites: a directiva deixa de escrever e as rotas respondem vazio. |
+| `HONGAYETU_MENSAGENS_WEB_AUTO_ROUTES` | `true` | Registar as rotas web sozinho. |
+| `HONGAYETU_MENSAGENS_WEB_PREFIX` | `mensagens-popup` | Prefixo das rotas web. |
+| `HONGAYETU_MENSAGENS_WEB_GUARD` | (o por omissão) | O guard onde a directiva procura a sessão. |
+
 ## Comportamento
 
 - **Sem cache**: cada `/serve` é sempre encaminhado. A central já tem cache curto onde faz sentido.
@@ -180,6 +269,15 @@ Este proxy elimina o último vector ofensivo: o token estático no bundle.
 composer install
 vendor/bin/phpunit
 ```
+
+O `popup.js` prova-se num browser a sério, com o Playwright do monólito (Chromium, sem servidor nenhum):
+
+```bash
+node --check resources/js/popup.js
+node tests/harness/prova.js            # tudo; ou só uma parte: principal, fechar, navegacao, seguranca, falhas, video, temas, telemovel, csrf
+```
+
+As capturas ficam em `tests/harness/capturas/`. O Playwright vem de `PLAYWRIGHT_DIR` (por omissão, o `node_modules/playwright` do monólito).
 
 ## Licença
 

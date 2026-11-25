@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prova do popup.js</title>
+<!--
+  Página de prova do `resources/js/popup.js`. Não é um site a sério: imita a página inicial de um
+  serviço, com um `window.fetch` simulado no lugar das rotas `mensagens-popup` do package.
+
+  Quem a abre é o `prova.js` (Playwright), que a serve em https://humbi.exemplo/ sem servidor nenhum.
+  Cenários: ?cenario=duas (omissão) | uma | hostil | video | falha | erro | lixo
+  Tema:     ?classe=dark | light  (a classe no <html>, como os sites com tema próprio)
+
+  O CSS do «site» é feio de propósito (botões cor-de-rosa em maiúsculas, parágrafos a vermelho):
+  nada disto pode entrar na janela, que vive num Shadow DOM.
+-->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Georgia, serif; background: #f8fafc; color: #0f172a; }
+  html.dark body, body.escuro { background: #0b1220; color: #e2e8f0; }
+  header { display: flex; align-items: center; gap: 16px; padding: 16px 24px; background: #0f766e; color: #fff; }
+  header strong { font-size: 22px; }
+  header nav { margin-left: auto; display: flex; gap: 16px; font-size: 15px; }
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+  h1 { font-size: 34px; margin: 0 0 8px; }
+  p { color: #b91c1c; }
+  .grelha { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-top: 24px; }
+  .cartao { height: 150px; border-radius: 12px; background: #e2e8f0; padding: 16px; }
+  html.dark .cartao, body.escuro .cartao { background: #1e293b; }
+  button { background: hotpink; color: #000; text-transform: uppercase; border: 4px dashed #000; padding: 20px; font-family: "Comic Sans MS", cursive; }
+  a { color: green; }
+  div { letter-spacing: 0; }
+</style>
+<script>
+(function () {
+    var q = new URLSearchParams(location.search);
+    var classe = q.get('classe');
+    if (classe) { document.documentElement.classList.add(classe); }
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches && classe !== 'light') {
+        document.addEventListener('DOMContentLoaded', function () { document.body.classList.add('escuro'); });
+    }
+
+    var NOVIDADE = {
+        id: 11, tipo: 'novidade', obrigatoria: false, obrigatoria_segundos: 0, dispensavel: true,
+        diapositivos: [
+            {
+                titulo: 'Entregas no mesmo dia em Luanda',
+                texto: '<p>A partir de hoje, as encomendas feitas até às <strong>14h</strong> chegam no próprio dia a Talatona, Kilamba e Viana.</p>'
+                    + '<p>Vê as zonas e os preços na <a href="https://parceiro.exemplo/zonas">página das entregas</a>.</p>',
+                texto_formato: 'html',
+                imagem: 'https://cdn.exemplo/entregas.svg',
+                video: null,
+                botoes: [],
+            },
+            {
+                titulo: 'Acompanha o estafeta no mapa',
+                texto: '<p>Quando a encomenda sai da loja, recebes um aviso e podes ver:</p>'
+                    + '<ul><li>onde está o estafeta;</li><li>a hora prevista de chegada;</li><li>o contacto dele, se precisares.</li></ul>',
+                texto_formato: 'html',
+                imagem: null,
+                video: null,
+                botoes: [
+                    { rotulo: 'Ver promoções', tipo: 'pagina', destino: '/promocoes', novo_separador: false, principal: false },
+                    { rotulo: 'Abrir a loja', tipo: 'endereco', destino: 'https://parceiro.exemplo/loja', novo_separador: true, principal: true },
+                ],
+            },
+        ],
+    };
+
+    var OBRIGATORIA = {
+        id: 12, tipo: 'obrigatoria', obrigatoria: true, obrigatoria_segundos: 3, dispensavel: false,
+        diapositivos: [
+            {
+                titulo: 'Novos termos de utilização',
+                texto: '<p>Os termos de utilização mudam a <strong>1 de Dezembro</strong>. Lê o resumo antes de continuares:</p>'
+                    + '<ol><li>as devoluções passam a ter 15 dias;</li><li>o saldo da carteira deixa de expirar.</li></ol>',
+                texto_formato: 'html',
+                imagem: null,
+                video: null,
+                botoes: [],
+            },
+        ],
+    };
+
+    var UMA = {
+        id: 21, tipo: 'aviso', obrigatoria: false, obrigatoria_segundos: 0, dispensavel: false,
+        diapositivos: [{ titulo: 'Manutenção no domingo', texto: '<p>O site vai estar parado no domingo, das 2h às 4h.</p>', texto_formato: 'html', imagem: null, video: null, botoes: [] }],
+    };
+
+    var HOSTIL = {
+        id: 31, tipo: 'aviso', obrigatoria: false, obrigatoria_segundos: 0, dispensavel: false,
+        diapositivos: [{
+            titulo: '<img src=x onerror="window.__xss=1"> Título com etiquetas',
+            texto: '<p onclick="window.__xss=2" style="position:fixed">Texto <b>limpo</b>.</p>'
+                + '<script>window.__xss=3<\/script>'
+                + '<img src="https://cdn.exemplo/entregas.svg" onerror="window.__xss=4">'
+                + '<iframe src="https://parceiro.exemplo/"></iframe>'
+                + '<a href="javascript:window.__xss=5">ligação má</a> '
+                + '<a href="  JaVaScRiPt:window.__xss=6">outra má</a> '
+                + '<a href="//parceiro.exemplo/x">protocolo relativo</a> '
+                + '<a href="/ajuda" onclick="window.__xss=7">ligação de dentro</a> '
+                + '<a href="https://parceiro.exemplo/fora" target="_self">ligação de fora</a> '
+                + '<a href="mailto:apoio@exemplo.ao">correio</a>'
+                + '<h1>cabeçalho desembrulhado</h1><style>*{display:none}</style>',
+            texto_formato: 'html',
+            imagem: 'http://cdn.exemplo/sem-https.svg',
+            video: null,
+            botoes: [
+                { rotulo: 'Botão mau', tipo: 'endereco', destino: 'javascript:window.__xss=8', novo_separador: false, principal: true },
+                { rotulo: 'Página de fora', tipo: 'pagina', destino: '//parceiro.exemplo/roubo', novo_separador: false, principal: false },
+            ],
+        }],
+    };
+
+    var VIDEO = {
+        id: 41, tipo: 'campanha', obrigatoria: false, obrigatoria_segundos: 0, dispensavel: false,
+        diapositivos: [
+            { titulo: 'Vê como funciona', texto: '<p>Dois minutos para conheceres a carteira.</p>', texto_formato: 'html', imagem: null,
+              video: { tipo: 'hls', url: 'https://cdn.exemplo/video/mestre.m3u8', capa: 'https://cdn.exemplo/capa.svg' }, botoes: [] },
+            { titulo: 'O mesmo em MP4', texto: '<p>O ficheiro carregado toca tal como está.</p>', texto_formato: 'html', imagem: null,
+              video: { tipo: 'mp4', url: 'https://cdn.exemplo/video/filme.mp4', capa: 'https://cdn.exemplo/capa.svg' }, botoes: [] },
+        ],
+    };
+
+    var CENARIOS = { duas: [NOVIDADE, OBRIGATORIA], uma: [UMA], hostil: [HOSTIL], video: [VIDEO] };
+    var cenario = q.get('cenario') || 'duas';
+
+    window.__pedidos = [];
+
+    function resposta(estado, corpo) {
+        return Promise.resolve({
+            ok: estado >= 200 && estado < 300,
+            status: estado,
+            json: function () { return Promise.resolve(corpo); },
+        });
+    }
+
+    // O lugar das rotas do package: regista cada pedido e responde como o servidor responderia.
+    window.fetch = function (url, opcoes) {
+        opcoes = opcoes || {};
+        var pedido = {
+            url: String(url),
+            metodo: opcoes.method || 'GET',
+            credenciais: opcoes.credentials || null,
+            keepalive: opcoes.keepalive === true,
+            cabecalhos: opcoes.headers || {},
+            corpo: opcoes.body ? JSON.parse(opcoes.body) : null,
+        };
+        window.__pedidos.push(pedido);
+        if (typeof window.__registarPedido === 'function') { window.__registarPedido(pedido); }
+
+        if (pedido.metodo === 'POST') { return resposta(200, { estado: 'ok' }); }
+        if (cenario === 'falha') { return Promise.reject(new TypeError('Failed to fetch')); }
+        if (cenario === 'erro') { return resposta(500, { message: 'Server Error' }); }
+        if (cenario === 'lixo') { return resposta(200, { estado: 'ok', mensagens: 'nenhuma' }); }
+        return resposta(200, { estado: 'ok', mensagens: CENARIOS[cenario] || [] });
+    };
+})();
+</script>
+<script defer src="/mensagens-popup/popup.js?v=prova"
+        data-raiz="/mensagens-popup"
+        data-zonas='[{"servico":"humbi","superficie":"site","caminhos":["/"],"anfitrioes":[]},{"servico":"humbi-negocio","superficie":"painel","caminhos":["/painel"],"anfitrioes":["negocio.humbi.exemplo"]}]'
+        data-csrf="csrf-de-prova"></script>
+</head>
+<body>
+<header><strong>Humbi</strong><nav><span>Lojas</span><span>Encomendas</span><span>Conta</span></nav></header>
+<main>
+  <h1>Olá, Ana</h1>
+  <p>Este parágrafo é vermelho por causa do CSS do site.</p>
+  <button id="botao-do-site" type="button">Botão do site</button>
+  <div class="grelha">
+    <div class="cartao">Supermercado Kero</div><div class="cartao">Farmácia Central</div>
+    <div class="cartao">Padaria do Bairro</div><div class="cartao">Talho Boi Gordo</div>
+    <div class="cartao">Electro Luanda</div><div class="cartao">Livraria Lello</div>
+    <div class="cartao">Flores da Ilha</div><div class="cartao">Pizzaria Bella</div>
+  </div>
+</main>
+</body>
+</html>

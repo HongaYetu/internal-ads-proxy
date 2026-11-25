@@ -93,5 +93,59 @@ return [
 
         // Usado quando o pedido não traz `servico`.
         'servico_por_omissao' => env('HONGAYETU_MENSAGENS_SERVICO'),
+
+        /*
+        |----------------------------------------------------------------------
+        | As mensagens nos sites (sessão web), sem build de frontend
+        |----------------------------------------------------------------------
+        | O package serve um `popup.js` autónomo que desenha a janela, e a
+        | directiva `@mensagensPopupHonga`, posta na página de raiz do site,
+        | escreve a etiqueta que o carrega. O script pede as mensagens a
+        | `GET {route_prefix}` e regista os eventos em
+        | `POST {route_prefix}/{mensagem}/eventos`, com a sessão do site.
+        |
+        | Sem zonas, a directiva não escreve nada.
+        */
+        'web' => [
+            'enabled' => (bool) env('HONGAYETU_MENSAGENS_WEB_ENABLED', true),
+
+            'auto_register_routes' => env('HONGAYETU_MENSAGENS_WEB_AUTO_ROUTES', true),
+            'route_prefix' => env('HONGAYETU_MENSAGENS_WEB_PREFIX', 'mensagens-popup'),
+            'route_name_prefix' => 'mensagens-popup.web.',
+
+            // A lista e os eventos. Com outro guard: `'auth:cliente'` aqui e
+            // `'guard' => 'cliente'` mais abaixo. O `throttle` sempre com nome.
+            'middleware' => [
+                'web',
+                'auth',
+                'throttle:60,1,mensagens-popup-web',
+            ],
+
+            // O `popup.js` é público e igual para todos: sem sessão nem `auth`.
+            'script_middleware' => [
+                'throttle:120,1,mensagens-popup-script',
+            ],
+
+            // O guard onde a directiva procura quem está autenticado.
+            // `null` = o guard por omissão do serviço.
+            'guard' => env('HONGAYETU_MENSAGENS_WEB_GUARD'),
+
+            /*
+            | Onde a janela pode abrir, e em nome de que serviço. A primeira
+            | zona que casar com o domínio e o caminho da página ganha.
+            |
+            | - `servico`: a chave do serviço na central (`humbi`, `ticketverse`…).
+            | - `superficie`: `site`, `painel` ou `portal` (a `app` não é da web).
+            | - `caminhos`: os caminhos exactos da página inicial, sem barra
+            |   final (`/` é a raiz). A janela só abre neles.
+            | - `anfitrioes`: os domínios da zona; vazio = qualquer domínio.
+            |
+            | [
+            |     ['servico' => 'humbi', 'superficie' => 'site', 'caminhos' => ['/'], 'anfitrioes' => ['humbi.ao']],
+            |     ['servico' => 'humbi', 'superficie' => 'painel', 'caminhos' => ['/painel'], 'anfitrioes' => ['negocio.humbi.ao']],
+            | ],
+            */
+            'zonas' => [],
+        ],
     ],
 ];

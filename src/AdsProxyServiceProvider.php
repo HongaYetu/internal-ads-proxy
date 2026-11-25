@@ -3,6 +3,7 @@
 namespace HongaYetu\InternalAdsProxy;
 
 use HongaYetu\InternalAdsProxy\Http\AdsProxyClient;
+use HongaYetu\InternalAdsProxy\Http\Controllers\MensagensPopupController;
 use HongaYetu\InternalAdsProxy\Http\MensagensPopupClient;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -63,6 +64,12 @@ class AdsProxyServiceProvider extends ServiceProvider
         if ((bool) $this->app['config']->get('ads-proxy.mensagens.auto_register_routes', true)) {
             $this->registarRotasDasMensagens();
         }
+
+        if ((bool) $this->app['config']->get('ads-proxy.mensagens.web.auto_register_routes', true)) {
+            $this->registarRotasDasMensagensNosSites();
+        }
+
+        $this->registarDirectiva();
     }
 
     protected function registarRotas(): void
@@ -83,5 +90,39 @@ class AdsProxyServiceProvider extends ServiceProvider
             ->prefix($config['route_prefix'] ?? 'api/mensagens-popup')
             ->name($config['route_name_prefix'] ?? 'mensagens-popup.')
             ->group(__DIR__.'/../routes/mensagens.php');
+    }
+
+    /**
+     * As mensagens nos sites: a lista e os eventos com a sessão web, e o
+     * `popup.js` à parte, sem sessão nem `auth` (é público e fica em cache).
+     */
+    protected function registarRotasDasMensagensNosSites(): void
+    {
+        $config = (array) $this->app['config']->get('ads-proxy.mensagens.web', []);
+        $prefixo = $config['route_prefix'] ?? MensagensPopupWeb::PREFIXO;
+        $nomes = $config['route_name_prefix'] ?? MensagensPopupWeb::PREFIXO_DOS_NOMES;
+
+        Route::middleware($config['middleware'] ?? MensagensPopupWeb::MIDDLEWARE)
+            ->prefix($prefixo)
+            ->name($nomes)
+            ->group(__DIR__.'/../routes/mensagens-web.php');
+
+        Route::middleware($config['script_middleware'] ?? MensagensPopupWeb::MIDDLEWARE_DO_SCRIPT)
+            ->prefix($prefixo)
+            ->name($nomes)
+            ->group(function (): void {
+                Route::get('/popup.js', [MensagensPopupController::class, 'script'])->name('script');
+            });
+    }
+
+    /** `@mensagensPopupHonga` na página de raiz do site: escreve a etiqueta do `popup.js`, ou nada. */
+    protected function registarDirectiva(): void
+    {
+        $this->callAfterResolving('blade.compiler', function ($blade): void {
+            $blade->directive(
+                'mensagensPopupHonga',
+                fn (): string => '<?php echo \\'.MensagensPopupWeb::class.'::etiqueta(); ?>',
+            );
+        });
     }
 }

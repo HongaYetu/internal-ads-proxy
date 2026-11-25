@@ -4,6 +4,36 @@ Todas as alterações relevantes deste package estão documentadas aqui.
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/) e o versionamento segue [SemVer](https://semver.org/) — com a ressalva (típica de packages `internal-*`) que pode haver breaking changes em releases minor se sincronizados com a central.
 
+## [0.11.0] — 2026-11-25
+
+### Adicionado
+- **As mensagens em popup nos sites dos serviços, sem build de frontend.** O package passa a servir um ficheiro JavaScript puro e autónomo (`resources/js/popup.js`, sem dependências nem bundler) que desenha a janela, e uma directiva Blade que cada site põe na página de raiz. Ligar um site é uma linha de Blade e as zonas no config, sem `npm`:
+  ```blade
+  @mensagensPopupHonga
+  ```
+- **Rotas web (sessão), além das da API:**
+  - `GET mensagens-popup` (query `servico`, `superficie`) → a lista;
+  - `POST mensagens-popup/{mensagem}/eventos` → os eventos;
+  - `GET mensagens-popup/popup.js` → o script, **sem** sessão nem `auth` (só `throttle`), com `Content-Type: application/javascript; charset=utf-8`, `Cache-Control: public, max-age=3600` e `ETag`. A directiva junta-lhe `?v=<hash do ficheiro>`.
+- **Zonas** (`mensagens.web.zonas`): onde a janela pode abrir e em nome de que serviço — `['servico' => 'humbi', 'superficie' => 'site'|'painel'|'portal', 'caminhos' => ['/'], 'anfitrioes' => []]`. Na web, o `servico` e a `superficie` vêm do pedido mas têm de ser os de uma zona configurada (e, se a zona nomear domínios, o pedido tem de vir de um): de outro modo a lista vem vazia e o evento vem «ok», sem se chamar a central. A superfície `app` não se aceita pelas rotas web. A conta continua a sair sempre da sessão.
+- **Directiva `@mensagensPopupHonga`**: escreve uma única etiqueta `<script defer src="…/popup.js?v=…" data-raiz data-zonas data-csrf>`, e só com as mensagens ligadas, zonas configuradas e alguém autenticado no guard (com o id da conta Honga Yetu preenchido). Sem dados da pessoa no HTML. Um erro aqui dá em nada escrito, nunca numa página partida.
+- **O `popup.js`** segue o `AnfitriaoDeMensagens` do monólito:
+  - só pede a lista na página inicial de uma zona (domínio + caminho exacto), uma vez por zona e por carregamento; reage ao `inertia:navigate` e ao `popstate`; com `?tutorial` no endereço não abre;
+  - uma mensagem de cada vez; diapositivos com **Anterior** / **Seguinte** e indicador; imagem ou vídeo (MP4, ou HLS nativo, ou com o `hls.js` 1.5.17 do cdnjs carregado a pedido — se falhar, fica a capa); botões da mensagem no rodapé; **Não mostrar mais** nas dispensáveis; nas obrigatórias, «Continuar em N s» sem Esc nem clique fora;
+  - eventos `vista` (1 s depois de abrir), `fechada`, `dispensada`, `clique` (`principal`, `secundario`, `ligacao_texto`), `video_progresso` (no máximo de 10 em 10 s) e `video_fim`, sempre com o `servico` e a `superficie` da zona;
+  - tudo dentro de um Shadow DOM (o CSS do site não lhe toca, nem o dela ao site), tema claro/escuro (`prefers-color-scheme`, ou a classe `dark`/`light` no `<html>`), foco preso, alvos de 44 px, `prefers-reduced-motion`;
+  - o HTML dos textos volta a ser limpo no browser (lista branca de etiquetas, só o `href`; `http(s)`, `mailto:`, `tel:` e caminhos relativos), imagens e vídeos só `https`, e nunca se escreve HTML por `innerHTML`;
+  - falhas de rede ou respostas estranhas: silêncio total.
+- Configuração nova na chave `mensagens.web`: `enabled` (`HONGAYETU_MENSAGENS_WEB_ENABLED`), `auto_register_routes`, `route_prefix` (`mensagens-popup`), `route_name_prefix` (`mensagens-popup.web.`), `middleware` (`web`, `auth`, `throttle:60,1,mensagens-popup-web`), `script_middleware` (`throttle:120,1,mensagens-popup-script`), `guard` e `zonas`.
+- Prova num browser a sério em `tests/harness/` (`node tests/harness/prova.js`, com o Playwright do monólito): 100 verificações e as capturas em `tests/harness/capturas/`.
+
+### Atenção
+- **As rotas web registam-se sozinhas** ao actualizar (`mensagens-popup`, com `web` + `auth`). Sem zonas não servem para nada: a lista vem vazia e a directiva não escreve nada. Quem não as quiser põe `HONGAYETU_MENSAGENS_WEB_AUTO_ROUTES=false`.
+- **Quem publicou o `config/ads-proxy.php` tem de copiar o bloco `mensagens.web`** do config do package para o ficheiro publicado: é lá que se escrevem as zonas. Sem o bloco, valem os valores por omissão (incluindo o `middleware`), mas não há zonas.
+- Um site com outro guard acerta as duas coisas: `'auth:cliente'` no `mensagens.web.middleware` e `'guard' => 'cliente'`.
+- A etiqueta só é escrita para quem tem sessão **quando a página de raiz é desenhada**. Num site Inertia, quem inicia sessão sem recarregar a página só vê as mensagens no carregamento seguinte.
+- Um site com `Content-Security-Policy` tem de deixar passar o script do próprio domínio e, para o HLS fora do Safari, `https://cdnjs.cloudflare.com`.
+
 ## [0.10.0] — 2026-11-25
 
 - Aceita o Laravel 13 (`illuminate/* ^13.0`).

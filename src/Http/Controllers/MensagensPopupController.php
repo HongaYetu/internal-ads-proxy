@@ -3,8 +3,10 @@
 namespace HongaYetu\InternalAdsProxy\Http\Controllers;
 
 use HongaYetu\InternalAdsProxy\Http\MensagensPopupClient;
+use HongaYetu\InternalAdsProxy\MensagensPopupWeb;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Log;
 
@@ -129,6 +131,63 @@ class MensagensPopupController extends Controller
         ]);
 
         return $this->eventoAceite();
+    }
+
+    /**
+     * A lista pedida pelo site (sessão web, o `popup.js`).
+     *
+     * A conta continua a sair da sessão. O `servico` e a `superficie` vêm do
+     * pedido, mas só valem se forem os de uma zona configurada em
+     * `mensagens.web.zonas`: de outro modo a lista vem vazia sem se chamar a
+     * central. A superfície `app` nunca é uma zona da web.
+     */
+    public function indexWeb(Request $request): JsonResponse
+    {
+        if (! MensagensPopupWeb::ligada() || $this->zonaDoPedido($request, $request->query('servico'), $request->query('superficie')) === null) {
+            return $this->listaVazia();
+        }
+
+        return $this->index($request);
+    }
+
+    /** Um evento mandado pelo site. Fora de uma zona configurada, responde «ok» sem chamar a central. */
+    public function eventoWeb(Request $request, string $mensagem): JsonResponse
+    {
+        if (! MensagensPopupWeb::ligada() || $this->zonaDoPedido($request, $request->input('servico'), $request->input('superficie')) === null) {
+            return $this->eventoAceite();
+        }
+
+        return $this->evento($request, $mensagem);
+    }
+
+    /**
+     * O `popup.js`: JavaScript puro, igual para toda a gente, sem nada da
+     * pessoa. Por isso não leva sessão e pode ficar em cache; o `?v=` que a
+     * directiva lhe põe muda quando o ficheiro muda.
+     */
+    public function script(Request $request): Response
+    {
+        $caminho = MensagensPopupWeb::caminhoDoScript();
+
+        abort_unless(is_file($caminho), 404);
+
+        $resposta = new Response((string) file_get_contents($caminho), 200, [
+            'Content-Type' => 'application/javascript; charset=utf-8',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+
+        $resposta->setPublic();
+        $resposta->setMaxAge(3600);
+        $resposta->setEtag(MensagensPopupWeb::versaoDoScript());
+        $resposta->isNotModified($request);
+
+        return $resposta;
+    }
+
+    /** @return array<string, mixed>|null */
+    protected function zonaDoPedido(Request $request, mixed $servico, mixed $superficie): ?array
+    {
+        return MensagensPopupWeb::zona($this->texto($servico), $this->texto($superficie), $request->getHost());
     }
 
     /**
