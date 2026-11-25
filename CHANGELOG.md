@@ -6,6 +6,8 @@ O formato segue [Keep a Changelog](https://keepachangelog.com/) e o versionament
 
 ## [0.10.0] — 2026-11-25
 
+- Aceita o Laravel 13 (`illuminate/* ^13.0`).
+
 ### Adicionado
 - **Segundo proxy: as mensagens em popup da central Honga Yetu.** As apps e os sites de cada serviço passam a pedir as mensagens ao servidor do próprio serviço, e este vai buscá-las à central com o token do ConnectedProject, em nome da conta Honga Yetu de quem está autenticado. Os caminhos e a forma são os da API pública da central, para a app só mudar o endereço base:
   - `GET api/mensagens-popup` (query `servico`, `superficie`, `versao_app`, `plataforma`) → `{"estado":"ok","mensagens":[...]}`;
