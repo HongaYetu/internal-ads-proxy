@@ -3,7 +3,9 @@
 namespace HongaYetu\InternalAdsProxy;
 
 use HongaYetu\InternalAdsProxy\Http\AdsProxyClient;
+use HongaYetu\InternalAdsProxy\Http\Controllers\FeedbackController;
 use HongaYetu\InternalAdsProxy\Http\Controllers\MensagensPopupController;
+use HongaYetu\InternalAdsProxy\Http\FeedbackClient;
 use HongaYetu\InternalAdsProxy\Http\MensagensPopupClient;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -20,6 +22,16 @@ class AdsProxyServiceProvider extends ServiceProvider
     public const MENSAGENS_BASE_URL = 'https://hongayetu.com/api/v1/servicos/mensagens-popup';
 
     public const MENSAGENS_MIDDLEWARE = ['auth:sanctum', 'throttle:60,1,mensagens-popup'];
+
+    public const FEEDBACK_BASE_URL = 'https://hongayetu.com/api/v1/servicos/feedback';
+
+    public const FEEDBACK_MIDDLEWARE = ['throttle:10,1,feedback'];
+
+    public const FEEDBACK_CAPTURAS_MIDDLEWARE = ['throttle:12,1,feedback-capturas'];
+
+    public const FEEDBACK_WEB_MIDDLEWARE = ['web', 'throttle:10,1,feedback-web'];
+
+    public const FEEDBACK_WEB_CAPTURAS_MIDDLEWARE = ['web', 'throttle:12,1,feedback-capturas-web'];
 
     public function register(): void
     {
@@ -48,6 +60,19 @@ class AdsProxyServiceProvider extends ServiceProvider
                 logChannel: $config['log_channel'] ?? null,
             );
         });
+
+        $this->app->singleton(FeedbackClient::class, function (Application $app) {
+            $config = $app['config']->get('ads-proxy');
+            $feedback = (array) ($config['feedback'] ?? []);
+            $mensagens = (array) ($config['mensagens'] ?? []);
+
+            return new FeedbackClient(
+                baseUrl: (string) ($feedback['base_url'] ?? self::FEEDBACK_BASE_URL),
+                // O mesmo ConnectedProject: sem token próprio, o das mensagens e, por fim, o dos anúncios.
+                token: ($feedback['token'] ?? null) ?: ($mensagens['token'] ?? null) ?: ($config['token'] ?? null),
+                timeoutSeconds: (int) ($feedback['timeout'] ?? 8),
+            );
+        });
     }
 
     public function boot(): void
@@ -69,7 +94,58 @@ class AdsProxyServiceProvider extends ServiceProvider
             $this->registarRotasDasMensagensNosSites();
         }
 
+        if ((bool) $this->app['config']->get('ads-proxy.feedback.auto_register_routes', true)) {
+            $this->registarRotasDoFeedback();
+        }
+
+        if ((bool) $this->app['config']->get('ads-proxy.feedback.web.auto_register_routes', true)) {
+            $this->registarRotasDoFeedbackNosSites();
+        }
+
         $this->registarDirectiva();
+    }
+
+    /**
+     * O feedback na API do serviço: `POST {prefixo}` e `POST {prefixo}/capturas`. Sem `auth` por omissão,
+     * porque o feedback aceita visitantes. As capturas têm o middleware (e o limite) delas.
+     */
+    protected function registarRotasDoFeedback(): void
+    {
+        $config = (array) $this->app['config']->get('ads-proxy.feedback', []);
+        $prefixo = $config['route_prefix'] ?? 'api/feedback';
+        $nomes = $config['route_name_prefix'] ?? 'feedback.';
+
+        Route::middleware($config['middleware'] ?? self::FEEDBACK_MIDDLEWARE)
+            ->prefix($prefixo)->name($nomes)
+            ->group(function (): void {
+                Route::post('/', [FeedbackController::class, 'enviar'])->name('enviar');
+            });
+
+        Route::middleware($config['capturas_middleware'] ?? self::FEEDBACK_CAPTURAS_MIDDLEWARE)
+            ->prefix($prefixo)->name($nomes)
+            ->group(function (): void {
+                Route::post('/capturas', [FeedbackController::class, 'capturar'])->name('capturas');
+            });
+    }
+
+    /** O feedback nos sites (sessão web, com CSRF): `POST feedback` e `POST feedback/capturas`. */
+    protected function registarRotasDoFeedbackNosSites(): void
+    {
+        $config = (array) $this->app['config']->get('ads-proxy.feedback.web', []);
+        $prefixo = $config['route_prefix'] ?? 'feedback';
+        $nomes = $config['route_name_prefix'] ?? 'feedback.web.';
+
+        Route::middleware($config['middleware'] ?? self::FEEDBACK_WEB_MIDDLEWARE)
+            ->prefix($prefixo)->name($nomes)
+            ->group(function (): void {
+                Route::post('/', [FeedbackController::class, 'enviarWeb'])->name('enviar');
+            });
+
+        Route::middleware($config['capturas_middleware'] ?? self::FEEDBACK_WEB_CAPTURAS_MIDDLEWARE)
+            ->prefix($prefixo)->name($nomes)
+            ->group(function (): void {
+                Route::post('/capturas', [FeedbackController::class, 'capturar'])->name('capturas');
+            });
     }
 
     protected function registarRotas(): void

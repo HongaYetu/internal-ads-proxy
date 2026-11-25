@@ -87,6 +87,25 @@ return [
         // Honga Yetu. Aceita um caminho com pontos (ex.: `conta.honga_id`).
         'atributo_do_utilizador' => env('HONGAYETU_MENSAGENS_ATRIBUTO', 'honga_user_id'),
 
+        // O atributo do utilizador com o nome da pessoa, para as contas sem conta
+        // Honga Yetu. Aceita um caminho com pontos. Sem valor, tenta `nome` e
+        // depois `name`.
+        'atributo_do_nome' => env('HONGAYETU_MENSAGENS_ATRIBUTO_NOME'),
+
+        // Quem não tem conta Honga Yetu (o atributo acima vazio) recebe as
+        // mensagens na mesma? Ligado, o proxy manda o identificador do
+        // utilizador neste serviço (`getAuthIdentifier()`) e o nome, e a central
+        // lembra-se, por serviço, do que cada conta já viu. Desligado (omissão),
+        // essas pessoas recebem a lista vazia, como antes da 0.12.0.
+        'contas_sem_honga' => (bool) env('HONGAYETU_MENSAGENS_CONTAS_SEM_HONGA', false),
+
+        // Quem recebe: o nome de uma classe do serviço que implementa
+        // `HongaYetu\InternalAdsProxy\Contratos\FiltroDeMensagens`
+        // (`aceita(Request $request, mixed $utilizador): bool`). Com `false`, a
+        // lista vem vazia, o evento responde «ok» sem chamar a central e a
+        // directiva não escreve nada. Resolve-se pelo contentor. `null` = todos.
+        'filtro' => null,
+
         // Vazia = aceita o `servico` que a app mandar. Preenchida, um
         // `servico` fora dela recebe a lista vazia sem se chamar a central.
         'servicos_permitidos' => [],
@@ -146,6 +165,75 @@ return [
             | ],
             */
             'zonas' => [],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Feedback (desde a 0.12.0)
+    |--------------------------------------------------------------------------
+    | O terceiro proxy: o feedback da central Honga Yetu. A app manda o
+    | comentário a este servidor e este encaminha-o à central com o token do
+    | ConnectedProject (`POST {route_prefix}` e `POST {route_prefix}/capturas`).
+    |
+    | Ao contrário das mensagens, a pessoa tem de saber se o comentário não
+    | seguiu: se a central falhar, responde 503 com o texto a mostrar.
+    |
+    | Aceita visitantes: por omissão o middleware é só o limite de pedidos. Se
+    | houver alguém autenticado no `guard`, a central fica a saber quem é.
+    */
+    'feedback' => [
+        'enabled' => (bool) env('HONGAYETU_FEEDBACK_ENABLED', true),
+
+        'base_url' => env('HONGAYETU_FEEDBACK_BASE_URL', 'https://hongayetu.com/api/v1/servicos/feedback'),
+        // Por omissão, o das mensagens e, sem ele, o dos anúncios: é o mesmo ConnectedProject.
+        'token' => env('HONGAYETU_FEEDBACK_TOKEN'),
+        'timeout' => (int) env('HONGAYETU_FEEDBACK_TIMEOUT', 8),
+
+        'auto_register_routes' => env('HONGAYETU_FEEDBACK_AUTO_ROUTES', true),
+        'route_prefix' => env('HONGAYETU_FEEDBACK_PREFIX', 'api/feedback'),
+        'route_name_prefix' => 'feedback.',
+        // Sem `auth`: o feedback aceita visitantes. Com nome próprio no `throttle`.
+        'middleware' => ['throttle:10,1,feedback'],
+        // As capturas têm o limite delas. Se acrescentares um middleware acima
+        // (`auth:sanctum`, por exemplo), acrescenta-o aqui também.
+        'capturas_middleware' => ['throttle:12,1,feedback-capturas'],
+
+        // O guard onde se procura quem está autenticado (API: o `sanctum`,
+        // normalmente). `null` = o guard por omissão. Sem ninguém, é um visitante.
+        'guard' => env('HONGAYETU_FEEDBACK_GUARD'),
+
+        // No feedback faz sentido identificar sempre quem escreve: quem não tem
+        // conta Honga Yetu vai com a conta do serviço (id e nome, como nas
+        // mensagens). `enviar_como=0` envia sem conta nenhuma.
+        'contas_sem_honga' => (bool) env('HONGAYETU_FEEDBACK_CONTAS_SEM_HONGA', true),
+
+        // Vazia = vale a lista `mensagens.servicos_permitidos`.
+        'servicos_permitidos' => [],
+        // Usado quando o pedido não traz `servico` (e, sem ele, o das mensagens).
+        'servico_por_omissao' => env('HONGAYETU_FEEDBACK_SERVICO'),
+
+        // De que revendedor é o cliente: o nome de uma classe do serviço que
+        // implementa `HongaYetu\InternalAdsProxy\Contratos\OrigemDoFeedback`
+        // (`origem(Request $request, mixed $utilizador): ?array` com `tipo`, `id`
+        // e `nome`). Resolve-se pelo contentor. `null` = sem origem.
+        'origem' => null,
+
+        // As capturas de ecrã: a central recebe endereços `https`, por isso o
+        // ficheiro fica no disco do serviço (que tem de ser público).
+        'disco' => env('HONGAYETU_FEEDBACK_DISCO', 'public'),
+
+        /*
+        | Nos sites (sessão web, com CSRF): `POST {route_prefix}` e
+        | `POST {route_prefix}/capturas`.
+        */
+        'web' => [
+            'auto_register_routes' => env('HONGAYETU_FEEDBACK_WEB_AUTO_ROUTES', true),
+            'route_prefix' => env('HONGAYETU_FEEDBACK_WEB_PREFIX', 'feedback'),
+            'route_name_prefix' => 'feedback.web.',
+            'middleware' => ['web', 'throttle:10,1,feedback-web'],
+            'capturas_middleware' => ['web', 'throttle:12,1,feedback-capturas-web'],
+            'guard' => env('HONGAYETU_FEEDBACK_WEB_GUARD'),
         ],
     ],
 ];

@@ -4,6 +4,25 @@ Todas as alterações relevantes deste package estão documentadas aqui.
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/) e o versionamento segue [SemVer](https://semver.org/) — com a ressalva (típica de packages `internal-*`) que pode haver breaking changes em releases minor se sincronizados com a central.
 
+## [0.12.0] — 2026-11-26
+
+### Adicionado
+- **Mensagens para quem não tem conta Honga Yetu.** Opção `mensagens.contas_sem_honga` (`HONGAYETU_MENSAGENS_CONTAS_SEM_HONGA`, **`false` por omissão**: nada muda nos serviços já instalados). Ligada, quem está autenticado sem o atributo da conta Honga Yetu recebe as mensagens na mesma: o proxy manda `conta_externa_id` (o `getAuthIdentifier()`, como texto) e `conta_nome` (`mensagens.atributo_do_nome`, ou `nome` e depois `name`). Com conta Honga Yetu continua a ir o `honga_user_id`. Vale para a lista e os eventos (API e web) e para a directiva `@mensagensPopupHonga`.
+- **Filtro de quem recebe.** Opção `mensagens.filtro` (classe do serviço que implementa `Contratos\FiltroDeMensagens`, `aceita(Request, mixed $utilizador): bool`). Com `false`: lista vazia, evento «ok» sem chamar a central e a directiva não escreve nada. Um filtro que não se resolve recusa e regista um aviso.
+- **Proxy do feedback** (chave `feedback`): `POST api/feedback` e `POST api/feedback/capturas` na API e `POST feedback` e `POST feedback/capturas` nos sites (grupo `web`), encaminhados para `POST https://hongayetu.com/api/v1/servicos/feedback` com o token do ConnectedProject.
+  - A app só manda `texto`, `tipo`, `estrelas`, `servico`, `superficie`, `versao_app`, `plataforma`, `ecra`, `aparelho`, `quer_resposta`, `contacto_tipo`, `contacto`, `enviar_como`, `capturas[]` e a armadilha `site`. A conta (`honga_user_id` ou, com `feedback.contas_sem_honga`, **ligado por omissão**, `conta_externa_id` + `conta_nome`) e a origem (`origem_*`, de uma classe `feedback.origem` que implementa `Contratos\OrigemDoFeedback`) saem sempre do servidor. Com `enviar_como=0` não vai conta.
+  - Capturas: a central recebe endereços `https`. O ficheiro (jpeg, png ou webp, até 5 MB) fica no disco `feedback.disco` (`public`), pasta `feedback/capturas`, com nome aleatório; o envio troca os ids (até 3) pelos endereços públicos.
+  - Se a central falhar, responde `503 {"estado":"erro","texto":"Não foi possível enviar o teu comentário. Tenta de novo."}` e regista um aviso; o 200, 422 e 429 da central passam tal e qual. Kill switch `feedback.enabled`.
+  - Por omissão o middleware é só `throttle:10,1,feedback` (e `throttle:12,1,feedback-capturas` nas capturas): o feedback aceita visitantes.
+- Interfaces `HongaYetu\InternalAdsProxy\Contratos\FiltroDeMensagens` e `OrigemDoFeedback`.
+- Variáveis de ambiente novas: `HONGAYETU_MENSAGENS_CONTAS_SEM_HONGA`, `HONGAYETU_MENSAGENS_ATRIBUTO_NOME` e `HONGAYETU_FEEDBACK_*` (ver o README).
+
+### Atenção
+- **Quem publicou o `config/ads-proxy.php` tem de copiar** as chaves novas de `mensagens` (`atributo_do_nome`, `contas_sem_honga`, `filtro`) e o bloco `feedback` do config do package. Sem elas, valem os valores por omissão: mensagens como antes e as rotas do feedback registadas sozinhas (`HONGAYETU_FEEDBACK_AUTO_ROUTES=false` e `HONGAYETU_FEEDBACK_WEB_AUTO_ROUTES=false` desligam-nas).
+- A central tem de ter o suporte a `conta_externa_id` no feedback (o monólito de 26/11/2026 em diante); antes disso, ignora o campo e o feedback segue anónimo.
+- Na API, o feedback procura quem está autenticado no `feedback.guard`: sem o definir (`sanctum`, por exemplo) usa o guard por omissão, e o pedido pode seguir como visitante.
+- Nenhuma rota acaba em `.js` ou `.css` (lição da 0.11.1).
+
 ## [0.11.1] — 2026-11-25
 
 ### Corrigido

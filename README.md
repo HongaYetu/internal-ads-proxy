@@ -156,6 +156,67 @@ Para a maior parte dos serviços basta actualizar o package: o token é o dos an
 | `HONGAYETU_MENSAGENS_ATRIBUTO` | `honga_user_id` | Atributo do utilizador que guarda o id da conta Honga Yetu. |
 | `HONGAYETU_MENSAGENS_SERVICO` | — | Serviço usado quando o pedido não traz `servico`. |
 
+### Quem não tem conta Honga Yetu e o filtro (desde a 0.12.0)
+
+- **`mensagens.contas_sem_honga`** (`HONGAYETU_MENSAGENS_CONTAS_SEM_HONGA`, **`false` por omissão**: os serviços já instalados não mudam). Ligado, quem está autenticado sem o atributo da conta Honga Yetu recebe as mensagens na mesma: o proxy manda `conta_externa_id` (o `getAuthIdentifier()` do utilizador, como texto; só `A-Z a-z 0-9 _ . : -` até 64 caracteres) e `conta_nome` (o atributo `mensagens.atributo_do_nome`, ou, sem ele, `nome` e depois `name`). A central lembra-se, por serviço, do que cada conta já viu. Com conta Honga Yetu, continua a ir só o `honga_user_id`. Vale para a lista, os eventos, a API, a web e a directiva `@mensagensPopupHonga`.
+- **`mensagens.filtro`**: o nome de uma classe do serviço que implementa `HongaYetu\InternalAdsProxy\Contratos\FiltroDeMensagens` (`aceita(Request $request, mixed $utilizador): bool`), resolvida pelo contentor. Com `false`: lista vazia, evento «ok» sem chamar a central e a directiva não escreve nada. Serve para deixar de fora, por exemplo, os clientes de um revendedor (marca branca). Uma classe que não se resolve recusa (e fica um aviso).
+
+```php
+class SoClientesDiretos implements FiltroDeMensagens
+{
+    public function aceita(Request $request, mixed $utilizador): bool
+    {
+        return $utilizador->revendedor_id === null;
+    }
+}
+// config/ads-proxy.php → 'mensagens' => ['filtro' => SoClientesDiretos::class, 'contas_sem_honga' => true]
+```
+
+| Variável | Default | Descrição |
+|---|---|---|
+| `HONGAYETU_MENSAGENS_CONTAS_SEM_HONGA` | `false` | Mandar a conta do serviço a quem não tem conta Honga Yetu. |
+| `HONGAYETU_MENSAGENS_ATRIBUTO_NOME` | `nome`, depois `name` | Atributo do utilizador com o nome da pessoa. |
+
+## Feedback (desde a 0.12.0)
+
+O terceiro proxy: o **feedback** da central. A app ou o site manda o comentário ao servidor do serviço, que o encaminha à central (`POST https://hongayetu.com/api/v1/servicos/feedback`) com o token do ConnectedProject (o mesmo dos anúncios e das mensagens).
+
+| Rota no serviço | O que faz |
+|---|---|
+| `POST api/feedback` | Envia o comentário. Responde o corpo da central (`{"estado":"ok"}`). |
+| `POST api/feedback/capturas` | `multipart/form-data` com `imagem` (jpeg, png ou webp, até 5 MB). Responde `{"estado":"ok","captura":"<id>"}`. |
+| `POST feedback` e `POST feedback/capturas` | O mesmo para os sites, com o grupo `web` (sessão e CSRF). |
+
+**O que a app manda:** `texto`, `tipo`, `estrelas`, `servico` (ou o `servico_por_omissao`), `superficie`, `versao_app`, `plataforma`, `ecra`, `aparelho`, `quer_resposta`, `contacto_tipo`, `contacto`, `enviar_como`, `capturas[]` (até 3 ids devolvidos pelas capturas) e a armadilha `site` (preenchida, responde `ok` sem chamar a central). Tudo o resto é ignorado.
+
+**O que sai sempre do servidor, nunca do pedido:**
+- a conta: o `honga_user_id` (se o utilizador o tiver) ou, com `feedback.contas_sem_honga` (**ligado por omissão**: no feedback faz sentido saber sempre quem escreve), o `conta_externa_id` e o `conta_nome`. Com `enviar_como=0` não vai conta nenhuma. Quem está autenticado procura-se no `feedback.guard` (`HONGAYETU_FEEDBACK_GUARD`; na API, normalmente `sanctum`); sem ninguém, é um visitante;
+- a origem (`origem_tipo`, `origem_id`, `origem_nome`), de uma classe do serviço em `feedback.origem` que implementa `HongaYetu\InternalAdsProxy\Contratos\OrigemDoFeedback` (`origem(Request $request, mixed $utilizador): ?array`, com `tipo`, `id` e `nome`). É assim que o GPS Yetu diz de que revendedor é o cliente.
+
+**Capturas:** a central recebe endereços `https`, não ficheiros. Por isso `…/capturas` guarda a imagem no disco `feedback.disco` (`public` por omissão, que tem de ser público; pasta `feedback/capturas`; nome aleatório) e o envio troca os ids de `capturas[]` pelos endereços (`Storage::disk()->url()`, forçados a `https`). Ids que não existem ou não são nossos são ignorados.
+
+**Respostas:** o 200, o 422 e o 429 da central passam tal e qual. Se a central falhar (rede, tempo esgotado, 5xx, o 401 do token), responde `503 {"estado":"erro","texto":"Não foi possível enviar o teu comentário. Tenta de novo."}` e fica um aviso no log: ao contrário das mensagens, aqui a pessoa tem de saber que não seguiu. `feedback.enabled=false` também responde 503.
+
+**Limites e middleware:** por omissão o envio leva só `throttle:10,1,feedback`, e as capturas `throttle:12,1,feedback-capturas` (o feedback aceita visitantes, por isso sem `auth`). Se acrescentares `auth:sanctum` ao `middleware`, acrescenta-o também ao `capturas_middleware`. As rotas web: `middleware` e `capturas_middleware` em `feedback.web`.
+
+| Variável | Default | Descrição |
+|---|---|---|
+| `HONGAYETU_FEEDBACK_ENABLED` | `true` | Kill switch do feedback (503 sem chamar a central). |
+| `HONGAYETU_FEEDBACK_BASE_URL` | `https://hongayetu.com/api/v1/servicos/feedback` | Endereço da central. |
+| `HONGAYETU_FEEDBACK_TOKEN` | o das mensagens, depois o dos anúncios | Token do ConnectedProject. |
+| `HONGAYETU_FEEDBACK_TIMEOUT` | `8` | Tempo máximo de espera, em segundos. |
+| `HONGAYETU_FEEDBACK_AUTO_ROUTES` | `true` | Registar as rotas da API sozinho. |
+| `HONGAYETU_FEEDBACK_PREFIX` | `api/feedback` | Prefixo das rotas da API. |
+| `HONGAYETU_FEEDBACK_GUARD` | (o por omissão) | Guard da API onde se procura quem está autenticado. |
+| `HONGAYETU_FEEDBACK_CONTAS_SEM_HONGA` | `true` | Mandar a conta do serviço a quem não tem conta Honga Yetu. |
+| `HONGAYETU_FEEDBACK_SERVICO` | o das mensagens | Serviço usado quando o pedido não traz `servico`. |
+| `HONGAYETU_FEEDBACK_DISCO` | `public` | Disco das capturas. |
+| `HONGAYETU_FEEDBACK_WEB_AUTO_ROUTES` | `true` | Registar as rotas web sozinho. |
+| `HONGAYETU_FEEDBACK_WEB_PREFIX` | `feedback` | Prefixo das rotas web. |
+| `HONGAYETU_FEEDBACK_WEB_GUARD` | (o por omissão) | Guard das rotas web. |
+
+Quem publicou o `config/ads-proxy.php` copia o bloco `feedback` e as chaves novas de `mensagens` (`contas_sem_honga`, `atributo_do_nome`, `filtro`). Sem elas valem os valores por omissão acima, com as rotas do feedback registadas sem `auth`.
+
 ## Mensagens em popup nos sites (desde a 0.11.0)
 
 Para os **sites** dos serviços (Inertia + React, Blade, o que for) não é preciso componente nem `npm`: o package serve um `popup.js` autónomo, que desenha a janela, e uma directiva Blade que o carrega.

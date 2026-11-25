@@ -150,7 +150,7 @@ class MensagensPopupWeb
      * `<script>`, ou nada.
      *
      * Só escreve com as mensagens ligadas, zonas configuradas e alguém
-     * autenticado com conta Honga Yetu. Não leva dados da pessoa. E nunca
+     * autenticado que a central saiba identificar (ver `temIdentidade`). Não leva dados da pessoa. E nunca
      * parte a página: qualquer erro aqui dá em nada escrito.
      */
     public static function etiqueta(): string
@@ -162,7 +162,7 @@ class MensagensPopupWeb
 
             $zonas = self::zonas();
 
-            if ($zonas === [] || ! self::temContaHonga()) {
+            if ($zonas === [] || ! self::temIdentidade()) {
                 return '';
             }
 
@@ -193,8 +193,12 @@ class MensagensPopupWeb
         }
     }
 
-    /** Há alguém autenticado no guard configurado, com o id da conta Honga Yetu preenchido. */
-    protected static function temContaHonga(): bool
+    /**
+     * Há alguém autenticado no guard configurado, que o filtro do serviço (`mensagens.filtro`) aceita e
+     * que a central consegue identificar: com o id da conta Honga Yetu ou, com
+     * `mensagens.contas_sem_honga` ligado, com a conta do serviço.
+     */
+    protected static function temIdentidade(): bool
     {
         $guard = self::texto(self::config('guard'));
         $utilizador = Auth::guard($guard)->user();
@@ -203,10 +207,7 @@ class MensagensPopupWeb
             return false;
         }
 
-        $atributo = (string) config('ads-proxy.mensagens.atributo_do_utilizador', 'honga_user_id');
-        $valor = data_get($utilizador, $atributo);
-
-        return is_numeric($valor) && (int) $valor > 0;
+        return Identidade::mensagensAceites(request(), $utilizador) && Identidade::dasMensagens($utilizador) !== null;
     }
 
     protected static function semBarraFinal(string $caminho): string

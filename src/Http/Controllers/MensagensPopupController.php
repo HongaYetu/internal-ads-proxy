@@ -3,6 +3,7 @@
 namespace HongaYetu\InternalAdsProxy\Http\Controllers;
 
 use HongaYetu\InternalAdsProxy\Http\MensagensPopupClient;
+use HongaYetu\InternalAdsProxy\Identidade;
 use HongaYetu\InternalAdsProxy\MensagensPopupWeb;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,7 +19,7 @@ use Illuminate\Support\Facades\Log;
  * ConnectedProject e diz de que conta Honga Yetu é o pedido.
  *
  * Uma regra acima de todas: **as mensagens nunca partem a entrada da app.**
- * Desligado, sem conta Honga Yetu, com a central em baixo ou lenta, a lista
+ * Desligado, sem conta, recusado pelo filtro, com a central em baixo ou lenta, a lista
  * responde vazia e o evento responde «ok». Só as recusas da central a um
  * evento (4xx) chegam à app, porque essas dizem-lhe alguma coisa.
  */
@@ -38,22 +39,23 @@ class MensagensPopupController extends Controller
             return $this->listaVazia();
         }
 
-        $hongaUserId = $this->hongaUserId($request);
+        $identidade = $this->identidade($request);
         $servico = $this->servico($request->query('servico'));
 
-        if ($hongaUserId === null || $servico === null || ! $this->servicoPermitido($servico)) {
+        if ($identidade === null || $servico === null || ! $this->servicoPermitido($servico)) {
             return $this->listaVazia();
         }
 
         /*
-         * O `honga_user_id` sai sempre da sessão deste servidor. O que vier no
+         * A conta (`honga_user_id`, ou `conta_externa_id` + `conta_nome` para quem
+         * não tem conta Honga Yetu) sai sempre da sessão deste servidor. O que vier no
          * pedido não entra aqui: de outro modo qualquer pessoa lia (e marcava
          * como vistas) as mensagens de outra conta. O `empresa_id` e o
          * `escola_id` da API pública da central também ficam de fora — este
          * token fala por um serviço, não por uma empresa.
          */
         $resposta = $this->client->listar(array_filter([
-            'honga_user_id' => $hongaUserId,
+            ...$identidade,
             'servico' => $servico,
             'superficie' => $this->texto($request->query('superficie')),
             'versao_app' => $this->texto($request->query('versao_app')),
@@ -84,10 +86,10 @@ class MensagensPopupController extends Controller
             return $this->eventoAceite();
         }
 
-        $hongaUserId = $this->hongaUserId($request);
+        $identidade = $this->identidade($request);
         $servico = $this->servico($request->input('servico'));
 
-        if ($hongaUserId === null || ($servico !== null && ! $this->servicoPermitido($servico))) {
+        if ($identidade === null || ($servico !== null && ! $this->servicoPermitido($servico))) {
             return $this->eventoAceite();
         }
 
@@ -101,7 +103,7 @@ class MensagensPopupController extends Controller
         }
 
         // Por último, para que nada do pedido lhe passe por cima.
-        $dados['honga_user_id'] = $hongaUserId;
+        $dados = [...$dados, ...$identidade];
 
         $resposta = $this->client->registarEvento($mensagem, $dados);
 
@@ -204,10 +206,25 @@ class MensagensPopupController extends Controller
             return null;
         }
 
-        $atributo = (string) $this->config('atributo_do_utilizador', 'honga_user_id');
-        $valor = data_get($utilizador, $atributo);
+        return Identidade::hongaUserId($utilizador, (string) $this->config('atributo_do_utilizador', 'honga_user_id'));
+    }
 
-        return is_numeric($valor) && (int) $valor > 0 ? (int) $valor : null;
+    /**
+     * Quem manda neste pedido, para a central: a conta Honga Yetu ou, com `mensagens.contas_sem_honga`
+     * ligado, a conta do serviço. `null` (sem utilizador, recusado pelo filtro `mensagens.filtro` ou sem
+     * conta que se possa dizer) quer dizer que não se chama a central.
+     *
+     * @return array<string, mixed>|null
+     */
+    protected function identidade(Request $request): ?array
+    {
+        $utilizador = $request->user();
+
+        if ($utilizador === null || ! Identidade::mensagensAceites($request, $utilizador)) {
+            return null;
+        }
+
+        return Identidade::dasMensagens($utilizador);
     }
 
     /** O serviço do pedido ou, se não vier, o que está configurado por omissão. */
