@@ -4,6 +4,26 @@ Todas as alterações relevantes deste package estão documentadas aqui.
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/) e o versionamento segue [SemVer](https://semver.org/) — com a ressalva (típica de packages `internal-*`) que pode haver breaking changes em releases minor se sincronizados com a central.
 
+## [0.10.0] — 2026-11-25
+
+### Adicionado
+- **Segundo proxy: as mensagens em popup da central Honga Yetu.** As apps e os sites de cada serviço passam a pedir as mensagens ao servidor do próprio serviço, e este vai buscá-las à central com o token do ConnectedProject, em nome da conta Honga Yetu de quem está autenticado. Os caminhos e a forma são os da API pública da central, para a app só mudar o endereço base:
+  - `GET api/mensagens-popup` (query `servico`, `superficie`, `versao_app`, `plataforma`) → `{"estado":"ok","mensagens":[...]}`;
+  - `POST api/mensagens-popup/{mensagem}/eventos` (`tipo` e os opcionais `servico`, `superficie`, `versao_app`, `plataforma`, `botao`, `destino`, `segundos`, `contexto_tipo`, `contexto_id`, `contexto_nome`) → `{"estado":"ok"}`.
+- **A conta sai sempre da sessão deste servidor** (`auth()->user()->honga_user_id`, com o nome do atributo configurável em `mensagens.atributo_do_utilizador`). Um `honga_user_id` que venha no pedido é ignorado, tal como o `empresa_id` e o `escola_id`.
+- **As mensagens nunca partem a entrada da app.** Desligado (`HONGAYETU_MENSAGENS_ENABLED=false`), sem conta Honga Yetu, com a central em baixo, lenta ou a recusar, a lista responde `{"estado":"ok","mensagens":[]}` (200) e o evento `{"estado":"ok"}`, com um aviso no canal de logs do package (`hongayetu.mensagens_popup.*`). Só as recusas da central a um evento (4xx, por exemplo o 422 «Esta mensagem não se pode dispensar.») passam tal e qual para a app.
+  - Excepção: um `401` da central num evento **não** passa. É o token do serviço a ser recusado, não a sessão da pessoa, e uma app que veja um 401 costuma terminar a sessão. Responde `{"estado":"ok"}` e fica o aviso no log.
+- Configuração nova na chave `mensagens` do `config/ads-proxy.php`: `enabled`, `base_url`, `token` (por omissão o dos anúncios), `timeout` (5 s), `auto_register_routes`, `route_prefix`, `route_name_prefix`, `middleware` (`auth:sanctum` + `throttle:60,1,mensagens-popup`, com contador próprio), `atributo_do_utilizador`, `servicos_permitidos` e `servico_por_omissao`.
+- `MensagensPopupClient` (`listar`, `registarEvento`), para quem queira ir buscar as mensagens do lado do servidor.
+- Nada fica em cache.
+
+### Atenção
+- **As rotas novas registam-se sozinhas** ao actualizar o package (`api/mensagens-popup`, com `auth:sanctum`). Um serviço que use outro guarda acerta o `mensagens.middleware`; quem não as quiser põe `HONGAYETU_MENSAGENS_AUTO_ROUTES=false`.
+- Quem publicou o `config/ads-proxy.php` não tem a chave `mensagens`: o package usa os valores por omissão (incluindo o `middleware`), mas as variáveis `HONGAYETU_MENSAGENS_*` só passam a contar depois de copiar o bloco `mensagens` para o ficheiro publicado.
+
+### Requer
+- A central com `GET`/`POST` em `/api/v1/servicos/mensagens-popup` (autenticação pelo token do ConnectedProject).
+
 ## [0.9.2] — 2026-10-29
 
 ### Corrigido

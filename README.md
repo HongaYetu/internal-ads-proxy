@@ -126,6 +126,36 @@ public function show(AdsProxyClient $client)
 | `HONGAYETU_ADS_PROXY_PREFIX` | `api/ads-proxy` | Prefix das rotas auto-registadas. |
 | `HONGAYETU_ADS_LOG_CHANNEL` | (default) | Canal Laravel para warnings de falhas upstream. |
 
+## Mensagens em popup (desde a 0.10.0)
+
+O package faz também de proxy das **mensagens em popup** da central Honga Yetu. A app ou o site pede-as ao servidor do próprio serviço, com a sessão que já tem, e este vai buscá-las à central com o token do ConnectedProject, em nome da conta Honga Yetu da pessoa.
+
+| Rota no serviço | O que faz |
+|---|---|
+| `GET api/mensagens-popup?servico=…&superficie=app` | As mensagens por mostrar. Aceita também `versao_app` e `plataforma`. Responde `{"estado":"ok","mensagens":[...]}`. |
+| `POST api/mensagens-popup/{mensagem}/eventos` | Regista `tipo` (`vista`, `fechada`, `dispensada`, `clique`, `video_progresso`, `video_fim`) e os opcionais `servico`, `superficie`, `versao_app`, `plataforma`, `botao`, `destino`, `segundos`, `contexto_tipo`, `contexto_id`, `contexto_nome`. Responde `{"estado":"ok"}`. |
+
+São os caminhos e a forma da API pública da central: a app só muda o endereço base.
+
+- **A conta vem da sessão**, nunca do pedido: `auth()->user()->honga_user_id`. Se o serviço lhe chama outra coisa, muda `mensagens.atributo_do_utilizador` (ou `HONGAYETU_MENSAGENS_ATRIBUTO`).
+- **Nunca parte a entrada da app.** Desligado, sem conta Honga Yetu, com a central em baixo ou lenta: a lista vem vazia (200) e o evento vem «ok», com um aviso no log. Só as recusas da central a um evento (4xx, menos o 401) passam para a app.
+- **`servicos_permitidos`**: vazia, aceita o `servico` que a app mandar; preenchida, um `servico` fora dela recebe a lista vazia sem se chamar a central.
+- **`servico_por_omissao`** (`HONGAYETU_MENSAGENS_SERVICO`): usado quando o pedido não traz `servico`.
+- **Sem cache.**
+
+Para a maior parte dos serviços basta actualizar o package: o token é o dos anúncios e as rotas registam-se sozinhas com `auth:sanctum` e `throttle:60,1,mensagens-popup`. Quem publicou o `config/ads-proxy.php` copia o bloco `mensagens` do config do package para o poder ajustar.
+
+| Variável | Default | Descrição |
+|---|---|---|
+| `HONGAYETU_MENSAGENS_ENABLED` | `true` | Kill switch das mensagens. Com `false`, a lista vem vazia e os eventos vêm «ok», sem chamar a central. |
+| `HONGAYETU_MENSAGENS_BASE_URL` | `https://hongayetu.com/api/v1/servicos/mensagens-popup` | Endereço base na central (sem barra final). |
+| `HONGAYETU_MENSAGENS_TOKEN` | o `HONGAYETU_ADS_TOKEN` | Token do ConnectedProject, se for outro que não o dos anúncios. |
+| `HONGAYETU_MENSAGENS_TIMEOUT` | `5` | Tempo máximo de espera pela central, em segundos. |
+| `HONGAYETU_MENSAGENS_AUTO_ROUTES` | `true` | Registar as rotas sozinho. |
+| `HONGAYETU_MENSAGENS_PREFIX` | `api/mensagens-popup` | Prefixo das rotas. |
+| `HONGAYETU_MENSAGENS_ATRIBUTO` | `honga_user_id` | Atributo do utilizador que guarda o id da conta Honga Yetu. |
+| `HONGAYETU_MENSAGENS_SERVICO` | — | Serviço usado quando o pedido não traz `servico`. |
+
 ## Comportamento
 
 - **Sem cache**: cada `/serve` é sempre encaminhado. A central já tem cache curto onde faz sentido.

@@ -1,6 +1,6 @@
 {
     "name": "hongayetu/internal-ads-proxy",
-    "description": "Proxy Laravel para a API v2 de anúncios da HongaYetu. Mantém o token ConnectedProject server-side, fora do bundle das apps mobile.",
+    "description": "Proxy Laravel para a API v2 de anúncios e para as mensagens em popup da HongaYetu. Mantém o token ConnectedProject server-side, fora do bundle das apps mobile.",
     "type": "library",
     "license": "proprietary",
     "keywords": ["hongayetu", "ads", "proxy", "laravel", "internal"],
