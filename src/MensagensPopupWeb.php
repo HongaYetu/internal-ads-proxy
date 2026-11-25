@@ -168,7 +168,7 @@ class MensagensPopupWeb
 
             $raiz = self::raiz();
             $atributos = [
-                'src' => $raiz.'/popup.js?v='.self::versaoDoScript(),
+                'src' => $raiz.'/janela?v='.self::versaoDoScript(),
                 'data-raiz' => $raiz,
             ];
 

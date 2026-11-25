@@ -111,7 +111,7 @@ class AdsProxyServiceProvider extends ServiceProvider
             ->prefix($prefixo)
             ->name($nomes)
             ->group(function (): void {
-                Route::get('/popup.js', [MensagensPopupController::class, 'script'])->name('script');
+                Route::get('/janela', [MensagensPopupController::class, 'script'])->name('script');
             });
     }
 

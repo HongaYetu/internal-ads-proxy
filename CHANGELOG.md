@@ -4,6 +4,11 @@ Todas as alterações relevantes deste package estão documentadas aqui.
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/) e o versionamento segue [SemVer](https://semver.org/) — com a ressalva (típica de packages `internal-*`) que pode haver breaking changes em releases minor se sincronizados com a central.
 
+## [0.11.1] — 2026-11-25
+
+### Corrigido
+- O script da janela passa a servir-se em `mensagens-popup/janela`, sem `.js` no endereço. Nos servidores com a regra do nginx para ficheiros `.js`/`.css` (aaPanel), um endereço acabado em `.js` que não é um ficheiro em disco chegava ao Laravel mas saía com o estado 404, e o browser recusa um `<script>` com 404.
+
 ## [0.11.0] — 2026-11-25
 
 ### Adicionado

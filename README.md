@@ -209,7 +209,7 @@ Para os **sites** dos serviços (Inertia + React, Blade, o que for) não é prec
 |---|---|---|
 | `GET mensagens-popup?servico=…&superficie=…` | `web`, `auth`, `throttle:60,1,mensagens-popup-web` | A lista. O `servico` e a `superficie` têm de ser os de uma zona (e do domínio dela): de outro modo vem vazia, sem se chamar a central. |
 | `POST mensagens-popup/{mensagem}/eventos` | os mesmos | Os eventos. Fora de uma zona responde «ok» sem chamar a central. |
-| `GET mensagens-popup/popup.js` | `throttle:120,1,mensagens-popup-script` | O script. Público, sem sessão, `Cache-Control: public, max-age=3600`; a directiva põe-lhe `?v=<hash do ficheiro>`. |
+| `GET mensagens-popup/janela` | `throttle:120,1,mensagens-popup-script` | O script. Público, sem sessão, `Cache-Control: public, max-age=3600`; a directiva põe-lhe `?v=<hash do ficheiro>`. |
 
 A conta sai sempre da sessão (`$request->user()`), como nas rotas da API. Sem sessão, a lista e os eventos respondem `401`.
 

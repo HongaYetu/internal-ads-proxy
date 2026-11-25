@@ -57,7 +57,7 @@ class MensagensPopupWebTest extends TestCase
 
         $this->assertSame('mensagens-popup', $lista->uri());
         $this->assertSame('mensagens-popup/{mensagem}/eventos', $eventos->uri());
-        $this->assertSame('mensagens-popup/popup.js', $script->uri());
+        $this->assertSame('mensagens-popup/janela', $script->uri());
 
         foreach ([$lista, $eventos] as $rota) {
             $this->assertSame(['web', 'auth', 'throttle:60,1,mensagens-popup-web'], $rota->gatherMiddleware());
@@ -271,7 +271,7 @@ class MensagensPopupWebTest extends TestCase
 
     public function test_o_popup_js_e_servido_sem_sessao_com_o_tipo_e_a_cache_certos(): void
     {
-        $resposta = $this->get('/mensagens-popup/popup.js?v='.MensagensPopupWeb::versaoDoScript());
+        $resposta = $this->get('/mensagens-popup/janela?v='.MensagensPopupWeb::versaoDoScript());
 
         $resposta->assertOk();
         $this->assertSame('application/javascript; charset=utf-8', $resposta->headers->get('Content-Type'));
@@ -292,10 +292,10 @@ class MensagensPopupWebTest extends TestCase
 
     public function test_o_popup_js_responde_304_a_quem_ja_tem_a_copia(): void
     {
-        $etag = $this->get('/mensagens-popup/popup.js')->headers->get('ETag');
+        $etag = $this->get('/mensagens-popup/janela')->headers->get('ETag');
 
         $this->assertNotEmpty($etag);
-        $this->get('/mensagens-popup/popup.js', ['If-None-Match' => $etag])->assertStatus(304);
+        $this->get('/mensagens-popup/janela', ['If-None-Match' => $etag])->assertStatus(304);
     }
 
     public function test_a_directiva_escreve_a_etiqueta_com_sessao_e_zonas(): void
@@ -306,7 +306,7 @@ class MensagensPopupWebTest extends TestCase
         $html = Blade::render('<body>@mensagensPopupHonga</body>');
 
         $this->assertSame(1, substr_count($html, '<script'));
-        $this->assertStringContainsString('<script defer src="/mensagens-popup/popup.js?v='.MensagensPopupWeb::versaoDoScript().'"', $html);
+        $this->assertStringContainsString('<script defer src="/mensagens-popup/janela?v='.MensagensPopupWeb::versaoDoScript().'"', $html);
         $this->assertStringContainsString(' data-raiz="/mensagens-popup"', $html);
         $this->assertStringContainsString(' data-csrf="'.csrf_token().'"', $html);
         $this->assertNotEmpty(csrf_token());
@@ -363,7 +363,7 @@ class MensagensPopupWebTest extends TestCase
         $this->assertSame('', Blade::render('@mensagensPopupHonga'));
 
         $this->actingAs(new GenericUser(['id' => 7, 'honga_user_id' => 321]), 'cliente');
-        $this->assertStringContainsString('popup.js', Blade::render('@mensagensPopupHonga'));
+        $this->assertStringContainsString('/mensagens-popup/janela', Blade::render('@mensagensPopupHonga'));
     }
 
     public function test_o_json_das_zonas_nao_consegue_sair_do_atributo(): void
