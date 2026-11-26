@@ -111,6 +111,9 @@ class MensagensPopupTest extends TestCase
 
     public function test_sem_utilizador_nada_vai_a_central(): void
     {
+        // Ninguém autenticado em guard nenhum: desde a 0.13.0 quem pede procura-se em todos
+        // (`Identidade::quemPede`), e não só no utilizador que o pedido traz resolvido.
+        self::$utilizador = null;
         Http::fake();
 
         $controller = $this->app->make(MensagensPopupController::class);

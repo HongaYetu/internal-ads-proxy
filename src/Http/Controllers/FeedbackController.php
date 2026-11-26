@@ -169,11 +169,7 @@ class FeedbackController extends Controller
     /** Quem está autenticado no guard configurado, se houver; o feedback também aceita visitantes. */
     protected function utilizador(Request $request, string $guard): mixed
     {
-        try {
-            return $request->user($guard !== '' ? $guard : null);
-        } catch (\Throwable) {
-            return null;
-        }
+        return Identidade::quemPede($request, $guard !== '' ? $guard : null);
     }
 
     /**

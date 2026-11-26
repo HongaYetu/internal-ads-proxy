@@ -47,11 +47,76 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Quem pede (desde a 0.13.0)
+    |--------------------------------------------------------------------------
+    | Os guards onde se procura primeiro quem está autenticado, para juntar a
+    | conta Honga Yetu ao `serve`, aos interesses, às mensagens e ao feedback.
+    | Vazio chega quase sempre: o package procura sozinho no utilizador do
+    | pedido, no `sanctum` (o Bearer da app, mesmo sem `auth` na rota), nos
+    | `auth:…` do middleware acima e no guard por omissão. Só é preciso para um
+    | guard fora do comum (`cliente`, por exemplo).
+    */
+    'guards' => array_values(array_filter(array_map('trim', explode(',', (string) env('HONGAYETU_ADS_GUARDS', ''))))),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Os anúncios nos sites (desde a 0.13.0)
+    |--------------------------------------------------------------------------
+    | Um segundo conjunto das mesmas rotas, fora de `api/` e com o grupo `web`:
+    | `POST {route_prefix}/serve|impression|click|video-event|interesses` e
+    | `GET {route_prefix}/click/{token}`. É para o **site** (browser, com cookie
+    | de sessão e CSRF): só com o `web` há sessão, e só com sessão o proxy sabe
+    | de quem é a conta Honga Yetu. As rotas `api/…` acima ficam para as apps.
+    |
+    | Desligado por omissão. No site, o SDK aponta para aqui:
+    | `<AdsProvider config={{ baseUrl: '/anuncios-proxy', mode: 'proxy' }}>`.
+    */
+    'web' => [
+        'auto_register_routes' => (bool) env('HONGAYETU_ADS_PROXY_WEB_AUTO_ROUTES', false),
+        'route_prefix' => env('HONGAYETU_ADS_PROXY_WEB_PREFIX', 'anuncios-proxy'),
+        'route_name_prefix' => 'ads-proxy.web.',
+        // Sem `auth`: os visitantes também vêem anúncios. O `throttle` com nome
+        // próprio; uma página pode ter vários espaços.
+        'middleware' => ['web', 'throttle:120,1,anuncios-web'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Logs
     |--------------------------------------------------------------------------
     | Canal Laravel para warnings de falhas upstream.
     */
     'log_channel' => env('HONGAYETU_ADS_LOG_CHANNEL', null),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Interesses (desde a 0.13.0)
+    |--------------------------------------------------------------------------
+    | Os sinais de interesse (pesquisa, ver_item, compra, ver_ecra) que a app ou
+    | o site manda para o perfil de temas da conta Honga Yetu de quem está
+    | autenticado: `POST {route_prefix}/interesses`, ao lado do `serve`. Este
+    | servidor junta o `honga_user_id` da conta ligada e reencaminha à central.
+    |
+    | É fire-and-forget: sem sessão, sem conta Honga Yetu ligada, desligado ou
+    | com a central em falha, responde 200 com `registados: 0`.
+    */
+    'interesses' => [
+        'enabled' => (bool) env('HONGAYETU_INTERESSES_ENABLED', true),
+
+        'base_url' => env('HONGAYETU_INTERESSES_BASE_URL', 'https://hongayetu.com/api/v1/servicos/interesses'),
+        // Por omissão, o dos anúncios: é o mesmo ConnectedProject.
+        'token' => env('HONGAYETU_INTERESSES_TOKEN'),
+        // Curto de propósito: o sinal nunca pode segurar o ecrã do cliente.
+        'timeout' => (int) env('HONGAYETU_INTERESSES_TIMEOUT', 3),
+
+        'auto_register_routes' => env('HONGAYETU_INTERESSES_AUTO_ROUTES', true),
+        // `null` = o middleware dos anúncios sem os `auth…` e os `throttle…`
+        // (um visitante recebe 200, não 401), mais `throttle:120,1,interesses`.
+        'middleware' => null,
+        // O guard onde se procura quem está autenticado. `null` = os `auth:…`
+        // do middleware dos anúncios e, depois, o guard por omissão.
+        'guard' => env('HONGAYETU_INTERESSES_GUARD'),
+    ],
 
     /*
     |--------------------------------------------------------------------------

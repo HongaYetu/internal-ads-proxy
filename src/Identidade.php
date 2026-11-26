@@ -17,6 +17,87 @@ final class Identidade
     /** O mesmo que a central aceita. */
     public const REGEX_DA_CONTA_EXTERNA = '/^[A-Za-z0-9_.:-]{1,64}$/';
 
+    /**
+     * Quem faz este pedido — o único sítio do package que o descobre. O `serve`, os interesses, as
+     * mensagens e o feedback perguntam todos aqui.
+     *
+     * As rotas dos anúncios servem visitantes, por isso muitas vezes não levam `auth`, e sem `auth` o
+     * guard por omissão (o da sessão) não vê o Bearer da app: a conta Honga Yetu nunca chegava à central.
+     * Procura-se por ordem, e o primeiro que tiver alguém ganha:
+     *
+     *  1. o guard pedido por quem chama (`$guardPreferido`: `interesses.guard`, `feedback.guard`…);
+     *  2. os de `ads-proxy.guards`;
+     *  3. o utilizador do pedido (`$request->user()`): o que um `auth:…` ou um middleware do próprio
+     *     serviço já tenha resolvido;
+     *  4. o `sanctum`, se o serviço o tiver — é ele que reconhece o Bearer da app;
+     *  5. os `auth:…` do middleware dos anúncios;
+     *  6. o guard por omissão.
+     *
+     * Um guard que não existe ou que falha passa-se à frente. Nunca se lê a conta do corpo do pedido.
+     */
+    public static function quemPede(Request $request, ?string $guardPreferido = null): mixed
+    {
+        $guards = [];
+
+        if (is_string($guardPreferido) && $guardPreferido !== '') {
+            $guards[] = $guardPreferido;
+        }
+
+        $configurados = config('ads-proxy.guards', []);
+
+        foreach (is_string($configurados) ? explode(',', $configurados) : (array) $configurados as $guard) {
+            if (is_string($guard) && trim($guard) !== '') {
+                $guards[] = trim($guard);
+            }
+        }
+
+        if ($utilizador = self::doGuards($guards)) {
+            return $utilizador;
+        }
+
+        try {
+            if ($utilizador = $request->user()) {
+                return $utilizador;
+            }
+        } catch (\Throwable) {
+            // Um resolver que rebenta não tira o anúncio a ninguém.
+        }
+
+        $resto = [];
+
+        if (is_array(config('auth.guards.sanctum'))) {
+            $resto[] = 'sanctum';
+        }
+
+        foreach ((array) config('ads-proxy.middleware', []) as $middleware) {
+            if (is_string($middleware) && str_starts_with($middleware, 'auth:')) {
+                array_push($resto, ...array_filter(array_map('trim', explode(',', substr($middleware, 5)))));
+            }
+        }
+
+        $resto[] = null;
+
+        return self::doGuards(array_values(array_diff($resto, $guards)));
+    }
+
+    /**
+     * @param  list<string|null>  $guards
+     */
+    protected static function doGuards(array $guards): mixed
+    {
+        foreach (array_unique($guards, SORT_REGULAR) as $guard) {
+            try {
+                if ($utilizador = auth($guard)->user()) {
+                    return $utilizador;
+                }
+            } catch (\Throwable) {
+                // Um guard que não existe neste serviço: passa-se ao seguinte.
+            }
+        }
+
+        return null;
+    }
+
     public static function hongaUserId(mixed $utilizador, ?string $atributo = null): ?int
     {
         if ($utilizador === null) {

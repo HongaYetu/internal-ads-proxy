@@ -200,7 +200,7 @@ class MensagensPopupController extends Controller
      */
     protected function hongaUserId(Request $request): ?int
     {
-        $utilizador = $request->user();
+        $utilizador = Identidade::quemPede($request);
 
         if ($utilizador === null) {
             return null;
@@ -218,7 +218,7 @@ class MensagensPopupController extends Controller
      */
     protected function identidade(Request $request): ?array
     {
-        $utilizador = $request->user();
+        $utilizador = Identidade::quemPede($request);
 
         if ($utilizador === null || ! Identidade::mensagensAceites($request, $utilizador)) {
             return null;

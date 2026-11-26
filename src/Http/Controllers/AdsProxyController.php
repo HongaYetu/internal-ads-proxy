@@ -3,6 +3,7 @@
 namespace HongaYetu\InternalAdsProxy\Http\Controllers;
 
 use HongaYetu\InternalAdsProxy\Http\AdsProxyClient;
+use HongaYetu\InternalAdsProxy\Identidade;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -40,17 +41,23 @@ class AdsProxyController extends Controller
             // O consumidor sabe reproduzir vídeo. O proxy só deixa passar;
             // quem decide a proporção video/imagem é a API central.
             'suporta_video' => 'nullable|boolean',
+            // O consumidor sabe desenhar o anúncio por peças (a chave `nativo`
+            // da resposta). Com este campo a central pode servir um anúncio
+            // que só tem peças, sem asset pronto no formato pedido. O proxy só
+            // deixa passar; a resposta volta tal e qual, com o `nativo` dentro.
+            'aceita_nativo' => 'nullable|boolean',
         ]);
 
-        // Injectar honga_user_id se o user autenticado no consumer tem perfil
-        // HongaYetu ligado. Esta é a forma como o motor central faz targeting
-        // demográfico (idade/género/geo) — sem expor PII ao SDK.
-        if (function_exists('auth') && auth()->check()) {
-            $u = auth()->user();
-            $hongaUserId = $u->honga_user_id ?? null;
-            if (! empty($hongaUserId)) {
-                $dados['honga_user_id'] = (int) $hongaUserId;
-            }
+        // A conta Honga Yetu de quem vê o anúncio: é assim que a central faz
+        // o targeting (demografia e interesses), sem expor dados da pessoa ao
+        // SDK. Sai sempre de quem está autenticado neste servidor — pela
+        // sessão do site ou pelo Bearer da app, com ou sem `auth` na rota
+        // (ver `Identidade::quemPede`) — e nunca do corpo do pedido: o
+        // `validate` acima não conhece o `honga_user_id` e deita-o fora.
+        unset($dados['honga_user_id']);
+
+        if ($hongaUserId = Identidade::hongaUserId(Identidade::quemPede($request))) {
+            $dados['honga_user_id'] = $hongaUserId;
         }
 
         return $this->forward($this->client->serve($dados));

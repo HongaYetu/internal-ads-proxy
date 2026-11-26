@@ -43,6 +43,10 @@ Todas com middleware `auth:sanctum` + `throttle:60,1,anuncios` por defeito.
 
 > O limite tem de ter **nome** (o 3.º argumento, `anuncios`). Um `throttle:N,M` sem nome usa a mesma chave — o utilizador, ou o domínio e o IP — em todas as rotas da app, seja qual for o N: os pedidos dos anúncios de um ecrã gastam o limite das outras rotas. No DesAppego esgotavam o limite do login e a revisão do Google recusou a app. Se mudares o middleware, mantém um nome próprio no `throttle`.
 
+### Anúncios por peças (desde a 0.13.0)
+
+O `POST /serve` deixa passar o campo `aceita_nativo` (boolean) para a central. Manda-o o cliente que sabe desenhar o anúncio com os seus próprios componentes: com ele, a central pode servir um anúncio que só tem peças (título, descrição, botão, fotografia sem texto, logótipo, cor da marca), mesmo sem asset pronto no formato pedido. A resposta traz essas peças na chave `nativo` de cada anúncio (`null` nos anúncios antigos) e o proxy devolve-a tal e qual. A impressão e o clique não mudam.
+
 ## Configuração do SDK no app mobile
 
 ```tsx
@@ -125,6 +129,62 @@ public function show(AdsProxyClient $client)
 | `HONGAYETU_ADS_PROXY_AUTO_ROUTES` | `true` | Auto-registar rotas no boot. |
 | `HONGAYETU_ADS_PROXY_PREFIX` | `api/ads-proxy` | Prefix das rotas auto-registadas. |
 | `HONGAYETU_ADS_LOG_CHANNEL` | (default) | Canal Laravel para warnings de falhas upstream. |
+
+## Quem pede: a conta Honga Yetu (desde a 0.13.0)
+
+A central faz o targeting (demografia e interesses) pela conta Honga Yetu de quem vê o anúncio. Essa conta sai **sempre** de quem está autenticado neste servidor, nunca do corpo do pedido, e segue como `honga_user_id` no `serve` e nos interesses.
+
+Há duas superfícies, com credenciais diferentes:
+
+| Superfície | Credencial | Rotas | O que é preciso |
+|---|---|---|---|
+| **App** | `Authorization: Bearer …` (Sanctum) | `api/ads-proxy/*` | Nada: o package reconhece o Bearer mesmo sem `auth` no middleware. |
+| **Site** (browser) | cookie de sessão + CSRF | `anuncios-proxy/*` | Ligar as rotas web e apontar o SDK para lá. |
+
+**As rotas web** (desligadas por omissão):
+
+```dotenv
+HONGAYETU_ADS_PROXY_WEB_AUTO_ROUTES=true
+```
+
+```tsx
+<AdsProvider config={{ baseUrl: '/anuncios-proxy', mode: 'proxy' }}>
+```
+
+São as mesmas rotas (`serve`, `impression`, `click`, `video-event`, `interesses` e o `GET click/{token}`), com `web` + `throttle:120,1,anuncios-web` e sem `auth` (os visitantes também vêem anúncios). O `web` traz a verificação de CSRF, e é por isso que as apps ficam nas rotas `api/…`.
+
+**Onde se procura quem pede** (`Identidade::quemPede`), por ordem: os guards de `ads-proxy.guards` (`HONGAYETU_ADS_GUARDS=cliente,web`), o utilizador do pedido, o `sanctum`, os `auth:…` do middleware dos anúncios e o guard por omissão. O atributo da conta no modelo é o de `mensagens.atributo_do_utilizador` (`HONGAYETU_MENSAGENS_ATRIBUTO`, por omissão `honga_user_id`).
+
+| Variável | Default | Descrição |
+|---|---|---|
+| `HONGAYETU_ADS_PROXY_WEB_AUTO_ROUTES` | `false` | Regista as rotas dos anúncios para o site. |
+| `HONGAYETU_ADS_PROXY_WEB_PREFIX` | `anuncios-proxy` | Prefixo dessas rotas (fora de `api/`). |
+| `HONGAYETU_ADS_GUARDS` | — | Guards onde procurar primeiro, separados por vírgulas. |
+
+## Interesses por utilizador (desde a 0.13.0)
+
+Quem tem conta Honga Yetu tem um perfil de temas, que a central usa para pontuar os anúncios. A app ou o site do serviço manda os sinais explícitos (uma pesquisa, um item visto, uma compra) a este servidor, que os reencaminha à central em nome da conta ligada:
+
+```
+POST /api/ads-proxy/interesses
+{ "tipo": "compra | pesquisa | ver_item | ver_ecra", "temas": ["telemoveis", "informatica"] }
+```
+
+- `temas`: de 1 a 10 textos de até 60 letras, **já limpos** (categoria, tipo de produto), nunca frases de pesquisa soltas nem temas sensíveis.
+- O `honga_user_id` sai sempre do utilizador autenticado neste servidor. Um `honga_user_id` no corpo é ignorado.
+- É fire-and-forget: a app não espera pela resposta, não mostra erros e não repete o pedido. Sem sessão, sem conta Honga Yetu ligada, desligado ou com a central em falha, a resposta é `200 {"estado":"ok","registados":0}`. Só um corpo inválido dá `422`.
+- A rota não leva `auth`: usa o middleware dos anúncios sem os `auth…` e os `throttle…`, mais `throttle:120,1,interesses` (ou o que puseres em `interesses.middleware`).
+- A app chama `api/ads-proxy/interesses` (Bearer); o site chama `anuncios-proxy/interesses` (sessão), com as rotas web ligadas.
+- O `/serve` com `keywords` e o clique num anúncio já alimentam o perfil sozinhos: não precisam desta rota.
+
+| Variável | Default | Descrição |
+|---|---|---|
+| `HONGAYETU_INTERESSES_ENABLED` | `true` | Kill switch: com `false`, responde `registados: 0` sem chamar a central. |
+| `HONGAYETU_INTERESSES_BASE_URL` | `https://hongayetu.com/api/v1/servicos/interesses` | Endereço da central. |
+| `HONGAYETU_INTERESSES_TOKEN` | o dos anúncios | Token do ConnectedProject. |
+| `HONGAYETU_INTERESSES_TIMEOUT` | `3` | Tempo máximo de espera, em segundos. |
+| `HONGAYETU_INTERESSES_AUTO_ROUTES` | `true` | `false` não regista a rota. |
+| `HONGAYETU_INTERESSES_GUARD` | — | Guard onde se procura quem está autenticado. Sem ele: os `auth:…` do middleware dos anúncios e, depois, o guard por omissão. |
 
 ## Mensagens em popup (desde a 0.10.0)
 

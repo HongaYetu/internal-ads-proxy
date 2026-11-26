@@ -4,8 +4,10 @@ namespace HongaYetu\InternalAdsProxy;
 
 use HongaYetu\InternalAdsProxy\Http\AdsProxyClient;
 use HongaYetu\InternalAdsProxy\Http\Controllers\FeedbackController;
+use HongaYetu\InternalAdsProxy\Http\Controllers\InteressesController;
 use HongaYetu\InternalAdsProxy\Http\Controllers\MensagensPopupController;
 use HongaYetu\InternalAdsProxy\Http\FeedbackClient;
+use HongaYetu\InternalAdsProxy\Http\InteressesClient;
 use HongaYetu\InternalAdsProxy\Http\MensagensPopupClient;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -32,6 +34,12 @@ class AdsProxyServiceProvider extends ServiceProvider
     public const FEEDBACK_WEB_MIDDLEWARE = ['web', 'throttle:10,1,feedback-web'];
 
     public const FEEDBACK_WEB_CAPTURAS_MIDDLEWARE = ['web', 'throttle:12,1,feedback-capturas-web'];
+
+    public const WEB_MIDDLEWARE = ['web', 'throttle:120,1,anuncios-web'];
+
+    public const INTERESSES_BASE_URL = 'https://hongayetu.com/api/v1/servicos/interesses';
+
+    public const INTERESSES_LIMITE = 'throttle:120,1,interesses';
 
     public function register(): void
     {
@@ -73,6 +81,18 @@ class AdsProxyServiceProvider extends ServiceProvider
                 timeoutSeconds: (int) ($feedback['timeout'] ?? 8),
             );
         });
+
+        $this->app->singleton(InteressesClient::class, function (Application $app) {
+            $config = $app['config']->get('ads-proxy');
+            $interesses = (array) ($config['interesses'] ?? []);
+
+            return new InteressesClient(
+                baseUrl: (string) ($interesses['base_url'] ?? self::INTERESSES_BASE_URL),
+                // O mesmo ConnectedProject: sem token próprio, o dos anúncios.
+                token: ($interesses['token'] ?? null) ?: ($config['token'] ?? null),
+                timeoutSeconds: max(1, (int) ($interesses['timeout'] ?? 3)),
+            );
+        });
     }
 
     public function boot(): void
@@ -84,6 +104,14 @@ class AdsProxyServiceProvider extends ServiceProvider
 
         if ((bool) $this->app['config']->get('ads-proxy.auto_register_routes', true)) {
             $this->registarRotas();
+        }
+
+        if ((bool) $this->app['config']->get('ads-proxy.web.auto_register_routes', false)) {
+            $this->registarRotasNosSites();
+        }
+
+        if ((bool) $this->app['config']->get('ads-proxy.interesses.auto_register_routes', true)) {
+            $this->registarRotaDosInteresses();
         }
 
         if ((bool) $this->app['config']->get('ads-proxy.mensagens.auto_register_routes', true)) {
@@ -103,6 +131,53 @@ class AdsProxyServiceProvider extends ServiceProvider
         }
 
         $this->registarDirectiva();
+    }
+
+    /**
+     * Os anúncios nos sites: `serve`, `impression`, `click`, `video-event` e `interesses` num prefixo fora
+     * de `api/` (por omissão `anuncios-proxy`), com o grupo `web`. Um browser só tem sessão com o `web`, e
+     * sem sessão o proxy não sabe quem está a ver. As rotas `api/ads-proxy/*` ficam para as apps (Bearer).
+     * Desligadas por omissão: `ads-proxy.web.auto_register_routes`.
+     */
+    protected function registarRotasNosSites(): void
+    {
+        $config = (array) $this->app['config']->get('ads-proxy.web', []);
+        $middleware = $config['middleware'] ?? null;
+
+        Route::middleware(is_array($middleware) ? $middleware : self::WEB_MIDDLEWARE)
+            ->prefix($config['route_prefix'] ?? 'anuncios-proxy')
+            ->name($config['route_name_prefix'] ?? 'ads-proxy.web.')
+            ->group(__DIR__.'/../routes/proxy-web.php');
+    }
+
+    /**
+     * Os interesses: `POST {prefixo do proxy}/interesses`, ao lado do `serve`.
+     *
+     * Sem `auth`: um visitante recebe `200 {"estado":"ok","registados":0}`, e não um 401 que a app teria de
+     * tratar. Por omissão leva o middleware dos anúncios menos os `auth…` e os `throttle…` (o que sobra é o
+     * que dá a sessão ao pedido, como o `web`), mais um limite com nome próprio.
+     */
+    protected function registarRotaDosInteresses(): void
+    {
+        $config = (array) $this->app['config']->get('ads-proxy', []);
+        $interesses = (array) ($config['interesses'] ?? []);
+
+        $middleware = $interesses['middleware'] ?? null;
+
+        if (! is_array($middleware)) {
+            $middleware = array_values(array_filter(
+                (array) ($config['middleware'] ?? []),
+                fn ($m) => is_string($m) && ! str_starts_with($m, 'auth') && ! str_starts_with($m, 'throttle'),
+            ));
+            $middleware[] = self::INTERESSES_LIMITE;
+        }
+
+        Route::prefix($config['route_prefix'] ?? 'api/ads-proxy')
+            ->name($config['route_name_prefix'] ?? 'ads-proxy.')
+            ->middleware($middleware)
+            ->group(function () {
+                Route::post('/interesses', [InteressesController::class, 'registar'])->name('interesses');
+            });
     }
 
     /**

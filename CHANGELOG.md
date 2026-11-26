@@ -4,6 +4,39 @@ Todas as alterações relevantes deste package estão documentadas aqui.
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/) e o versionamento segue [SemVer](https://semver.org/) — com a ressalva (típica de packages `internal-*`) que pode haver breaking changes em releases minor se sincronizados com a central.
 
+## [0.13.0] — 2026-11-26
+
+### Adicionado
+- **Anúncios por peças.** O `POST /serve` passa a aceitar `aceita_nativo` (boolean) e a encaminhá-lo para a central. É o campo com que um cliente que sabe desenhar o anúncio com os seus próprios componentes (os SDK web `@hongayetu/internal-ads-react` ≥ 0.10.0, React Native ≥ 0.10.0 e o `sdk/ads` das apps KMP) diz que aceita um anúncio só com peças, mesmo sem asset pronto no formato pedido. Antes, o `validate` deitava o campo fora em silêncio e esses anúncios nunca chegavam aos sites e às apps dos serviços.
+- A resposta não muda neste package: o proxy já devolvia o corpo da central tal e qual, por isso a chave `nativo` de cada anúncio chega ao cliente sem mais nada.
+
+- **Interesses por utilizador** (chave `interesses`): `POST {prefixo do proxy}/interesses` (por omissão `api/ads-proxy/interesses`), ao lado do `serve`. A app ou o site manda `{ "tipo": "compra | pesquisa | ver_item | ver_ecra", "temas": ["…"] }` (1 a 10 temas, até 60 letras cada) e este servidor reencaminha para `POST https://hongayetu.com/api/v1/servicos/interesses`, com o token do ConnectedProject e o `honga_user_id` da conta Honga Yetu de quem está autenticado.
+  - É fire-and-forget. Sem sessão, sem conta Honga Yetu ligada, com `interesses.enabled` a `false` ou com a central em falha (erro, sem rede, tempo esgotado), responde `200 {"estado":"ok","registados":0}`. Com sucesso devolve o `registados`, o `ignorados` e o `motivo` da central. Só um corpo inválido dá `422 {"estado":"erro","texto":"…"}`.
+  - O tempo de espera é de 3 segundos (`HONGAYETU_INTERESSES_TIMEOUT`).
+  - A rota **não leva `auth`**: por omissão usa o middleware dos anúncios sem os `auth…` e os `throttle…`, mais `throttle:120,1,interesses`. Quem está autenticado procura-se no `interesses.guard` ou, sem ele, nos `auth:…` do middleware dos anúncios e depois no guard por omissão.
+  - Um `honga_user_id` no corpo do pedido é sempre ignorado.
+- Variáveis de ambiente novas: `HONGAYETU_INTERESSES_ENABLED`, `HONGAYETU_INTERESSES_BASE_URL`, `HONGAYETU_INTERESSES_TOKEN`, `HONGAYETU_INTERESSES_TIMEOUT`, `HONGAYETU_INTERESSES_AUTO_ROUTES` e `HONGAYETU_INTERESSES_GUARD`.
+
+- **Os anúncios nos sites** (chave `web`, **desligada por omissão**): um segundo conjunto das mesmas rotas, fora de `api/` e com o grupo `web` — `POST anuncios-proxy/serve|impression|click|video-event|interesses` e `GET anuncios-proxy/click/{token}`. É para o browser, com cookie de sessão e CSRF. Liga-se com `HONGAYETU_ADS_PROXY_WEB_AUTO_ROUTES=true` (ou `web.auto_register_routes` no config) e o site aponta o SDK para lá: `baseUrl: '/anuncios-proxy'`. As rotas `api/ads-proxy/*` ficam como estão, para as apps.
+- `ads-proxy.guards` (`HONGAYETU_ADS_GUARDS`, separados por vírgulas): guards onde se procura primeiro quem está autenticado.
+
+### Corrigido
+- **A conta Honga Yetu não chegava à central** nos serviços cujas rotas dos anúncios não levam `auth` (as que servem visitantes). O `serve` perguntava ao guard por omissão (`auth()->check()`), que é o da sessão: não via o Bearer da app, e nas rotas `api/…` nem sessão havia para o site. O `honga_user_id` nunca seguia, e a central servia toda a gente como visitante.
+  - Há agora um único sítio que descobre quem pede, `Identidade::quemPede()`, usado pelo `serve`, pelos interesses, pelas mensagens em popup e pelo feedback. Procura, por ordem: o guard pedido por quem chama (`interesses.guard`, `feedback.guard`), os de `ads-proxy.guards`, o utilizador do pedido (`$request->user()`: o que um `auth:…` ou um middleware do serviço já resolveu), o `sanctum` se existir (reconhece o Bearer da app mesmo sem `auth` na rota), os `auth:…` do middleware dos anúncios e o guard por omissão.
+  - Para o site, a sessão só existe com o grupo `web`: é para isso que servem as rotas web acima.
+- O `serve` passa a ler a conta pelo atributo configurado (`mensagens.atributo_do_utilizador`, por omissão `honga_user_id`), como as mensagens: num serviço que lhe chama outra coisa (`honga_id`), a conta não seguia.
+
+### Verificado
+- No `serve`, um `honga_user_id` escrito pelo cliente no corpo não segue para a central, com ou sem sessão: só vai o da conta de quem está autenticado. Já era assim (o `validate` só devolve os campos das regras); fica agora coberto por testes.
+
+### Atenção
+- Sem actualizar para esta versão, um cliente novo continua a funcionar, mas só recebe anúncios com asset no formato pedido (o comportamento de sempre).
+- **A rota dos interesses regista-se sozinha** ao actualizar. `HONGAYETU_INTERESSES_AUTO_ROUTES=false` não a regista; `HONGAYETU_INTERESSES_ENABLED=false` deixa-a a responder `registados: 0`.
+- Quem publicou o `config/ads-proxy.php` não precisa de copiar o bloco `interesses`: sem ele valem os valores por omissão.
+- **Um site que chama `api/ads-proxy/*` do browser continua sem conta** enquanto não passar para as rotas web: liga-as e muda o `baseUrl` do SDK para `/anuncios-proxy`. O grupo `web` traz o CSRF: o SDK `@hongayetu/internal-ads-react` ≥ 0.10.0 manda o cabeçalho sozinho; quem chama à mão manda `X-CSRF-TOKEN` ou `X-XSRF-TOKEN`.
+- Quem publicou o `config/ads-proxy.php` não precisa de copiar os blocos `guards` e `web` para os valores por omissão valerem (são chaves de primeiro nível); copia o `web` se quiseres mudar o prefixo ou o middleware.
+- O feedback e as mensagens passam a reconhecer também o Bearer da app em rotas sem `auth` (antes só viam o guard configurado ou o por omissão). Nas rotas com `auth:…` nada muda.
+
 ## [0.12.0] — 2026-11-26
 
 ### Adicionado
