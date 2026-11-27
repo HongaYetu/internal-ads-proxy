@@ -124,11 +124,37 @@ public function show(AdsProxyClient $client)
 |---|---|---|
 | `HONGAYETU_ADS_ENABLED` | `true` | **Kill switch.** Quando `false`, todos os endpoints devolvem `data:null` sem chamar a central. Pausa imediata sem deploy nem revogar tokens. |
 | `HONGAYETU_ADS_BASE_URL` | `https://anuncios.hongayetu.com/api/v2/ads` | URL base da API v2 (sem barra final). |
+| `HONGAYETU_ADS_HOST_HEADER` | — | O `Host` a mandar em vez do do endereço (desde a 0.14.0). Só com um `HONGAYETU_ADS_BASE_URL` em `http://` (ver abaixo). |
 | `HONGAYETU_ADS_TOKEN` | — | **Obrigatório**. Bearer token do ConnectedProject. |
 | `HONGAYETU_ADS_TIMEOUT` | `8` | Timeout HTTP em segundos. |
 | `HONGAYETU_ADS_PROXY_AUTO_ROUTES` | `true` | Auto-registar rotas no boot. |
 | `HONGAYETU_ADS_PROXY_PREFIX` | `api/ads-proxy` | Prefix das rotas auto-registadas. |
 | `HONGAYETU_ADS_LOG_CHANNEL` | (default) | Canal Laravel para warnings de falhas upstream. |
+
+### Na mesma máquina da central: sem passar pela Cloudflare (desde a 0.14.0)
+
+Um serviço que corre no mesmo servidor da central não precisa de dar a volta pela Cloudflare para chegar a ela: pode falar com o nginx local pelo IP, desde que mande o `Host` do site da central. No `.env` (`.env.server` em produção):
+
+```dotenv
+HONGAYETU_ADS_BASE_URL=http://127.0.0.1/api/v2/ads
+HONGAYETU_ADS_HOST_HEADER=anuncios.hongayetu.com
+```
+
+- **O Host é obrigatório.** O nginx da produção tem um servidor por omissão que recusa (444) os pedidos com um Host que não conhece, e é o Host que escolhe o site da central.
+- **Só com `http://`.** Em HTTPS, o certificado e o SNI são os do endereço (`127.0.0.1`), e um Host diferente dele falha. Com o endereço em `https://anuncios.hongayetu.com/…`, deixa o `HONGAYETU_ADS_HOST_HEADER` vazio.
+- Vale para o `serve`, a impressão, o clique (POST e o `GET …/click/{token}`) e os eventos de vídeo. Os interesses, as mensagens em popup e o feedback vão para outros endereços (`HONGAYETU_INTERESSES_BASE_URL`, …) e não usam este Host.
+- Para provar no servidor: `curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: anuncios.hongayetu.com' -X POST http://127.0.0.1/api/v2/ads/serve` dá um código da central (`401`, por ir sem token); sem o `-H`, o nginx fecha a ligação sem resposta (`000`).
+
+### Robôs no clique (desde a 0.14.0)
+
+O `GET {prefixo}/click/{token}` (nas rotas da API e nas dos sites) responde **404, sem chamar a central**, a um agente de robô: crawlers, browsers sem cabeça, `curl`, `wget`, `python-requests`… A central já não lhes conta o clique, mas cada ligação seguida custava-lhe um pedido. Os padrões estão em `ads-proxy.robos` e são os da central (`ads.publisher.bots_ua` no monólito): quando mudarem lá, mudam aqui. Um agente vazio não é um robô.
+
+Põe também as rotas do proxy no `robots.txt` do site, para os robôs bem-educados nem lá irem:
+
+```
+Disallow: /api/ads-proxy/
+Disallow: /anuncios-proxy/
+```
 
 ## Quem pede: a conta Honga Yetu (desde a 0.13.0)
 

@@ -53,6 +53,7 @@ class AdsProxyServiceProvider extends ServiceProvider
                 token: $config['token'] ?? null,
                 timeoutSeconds: (int) ($config['timeout'] ?? 8),
                 logChannel: $config['log_channel'] ?? null,
+                hostHeader: $config['host_header'] ?? null,
             );
         });
 

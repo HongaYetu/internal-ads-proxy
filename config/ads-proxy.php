@@ -25,6 +25,32 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Cabeçalho Host (desde a 0.14.0)
+    |--------------------------------------------------------------------------
+    | Para um serviço que corre na mesma máquina da central: em vez de ir pela
+    | Cloudflare, o pedido vai directo ao nginx local
+    | (`HONGAYETU_ADS_BASE_URL=http://127.0.0.1/api/v2/ads`) com o Host do
+    | site da central (`anuncios.hongayetu.com`). Sem o Host certo, o nginx
+    | recusa o pedido.
+    |
+    | Só com `http://`: em HTTPS o certificado e o SNI são os do endereço, e um
+    | Host diferente dele falha. Vazio (omissão), vai o Host do endereço.
+    */
+    'host_header' => env('HONGAYETU_ADS_HOST_HEADER'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Robôs (desde a 0.14.0)
+    |--------------------------------------------------------------------------
+    | Um agente que contenha um destes padrões (sem distinguir maiúsculas) é um
+    | robô: o `GET {route_prefix}/click/{token}` responde-lhe 404 sem chamar a
+    | central. É a lista da central (`ads.publisher.bots_ua` do monólito), que
+    | não conta os cliques deles; mudá-la lá e aqui ao mesmo tempo.
+    */
+    'robos' => ['bot', 'crawler', 'spider', 'headless', 'phantomjs', 'selenium', 'curl/', 'wget/', 'python-requests', 'scrapy'],
+
+    /*
+    |--------------------------------------------------------------------------
     | Routes
     |--------------------------------------------------------------------------
     | Se `auto_register_routes=true` (default), o ServiceProvider regista

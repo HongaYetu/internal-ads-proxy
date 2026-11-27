@@ -4,6 +4,23 @@ Todas as alterações relevantes deste package estão documentadas aqui.
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/) e o versionamento segue [SemVer](https://semver.org/) — com a ressalva (típica de packages `internal-*`) que pode haver breaking changes em releases minor se sincronizados com a central.
 
+## [0.14.0] — 2026-11-27
+
+### Adicionado
+- **Cabeçalho Host para falar com a central sem passar pela Cloudflare.** Chave `ads-proxy.host_header` (`HONGAYETU_ADS_HOST_HEADER`, vazia por omissão). Preenchida, o `AdsProxyClient` manda esse `Host` em todos os pedidos (`serve`, `impression`, `click`, `video-event` e o clique por GET). Um serviço na mesma máquina da central aponta o `HONGAYETU_ADS_BASE_URL` ao nginx local (`http://127.0.0.1/api/v2/ads`) com `HONGAYETU_ADS_HOST_HEADER=anuncios.hongayetu.com`: sai da volta pela Cloudflare (medido na produção: 77 ms contra 121 ms) e o nginx entrega o pedido ao site certo.
+  - **Só com `http://`.** Em HTTPS o SNI é o do endereço e um Host diferente falha.
+  - O nginx da produção recusa (444) um Host que não conhece: com o endereço local, o Host é obrigatório.
+  - O construtor do `AdsProxyClient` ganha o argumento `hostHeader` (opcional, o último).
+- **Robôs no clique.** O `GET {prefixo}/click/{token}` (API e sites) responde `404` a um agente de robô, sem chamar a central, com `X-Robots-Tag: noindex, nofollow`. Os padrões ficam em `ads-proxy.robos` e são os da central (`ads.publisher.bots_ua`: `bot`, `crawler`, `spider`, `headless`, `phantomjs`, `selenium`, `curl/`, `wget/`, `python-requests`, `scrapy`), comparados sem distinguir maiúsculas. Um agente vazio não é um robô. Classe `HongaYetu\InternalAdsProxy\DeteccaoDeRobos`.
+  - A central já não contava esses cliques, mas cada um custava-lhe um pedido: 54 mil cliques recusados em 15 dias, sobretudo do Reflectionbot.
+
+### Alterado
+- `AdsProxyController::clickRedirect()` passa a declarar `Symfony\Component\HttpFoundation\Response` (antes `RedirectResponse`), porque um robô recebe um 404 e não um redireccionamento. Uma subclasse que declare `RedirectResponse` continua compatível.
+
+### Atenção
+- Quem publicou o `config/ads-proxy.php` não precisa de copiar `host_header` nem `robos`: são chaves de primeiro nível e valem os valores do package. Copia o `robos` só para mudar a lista.
+- Põe `Disallow: /api/ads-proxy/` e `Disallow: /anuncios-proxy/` no `robots.txt` do site (ver o README).
+
 ## [0.13.0] — 2026-11-26
 
 ### Adicionado

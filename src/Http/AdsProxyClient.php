@@ -15,13 +15,21 @@ use Illuminate\Support\Facades\Log;
  */
 class AdsProxyClient
 {
+    /**
+     * @param  string|null  $hostHeader  O `Host` a mandar em vez do do endereço (desde a 0.14.0). Serve para um
+     *                                   serviço na mesma máquina da central falar com o nginx local
+     *                                   (`http://127.0.0.1/api/v2/ads`) sem passar pela Cloudflare. Só com
+     *                                   `http://`: em HTTPS o SNI é o do endereço e um Host diferente falha.
+     */
     public function __construct(
         protected string $baseUrl,
         protected ?string $token,
         protected int $timeoutSeconds = 8,
         protected ?string $logChannel = null,
+        protected ?string $hostHeader = null,
     ) {
         $this->baseUrl = rtrim($baseUrl, '/');
+        $this->hostHeader = trim((string) $hostHeader) ?: null;
     }
 
     public function serve(array $payload): ?Response
@@ -92,10 +100,15 @@ class AdsProxyClient
 
     protected function http(): PendingRequest
     {
-        return Http::withToken($this->token)
+        $pedido = Http::withToken($this->token)
             ->acceptJson()
             ->asJson()
             ->timeout($this->timeoutSeconds);
+
+        // Sem o Host do site da central, o nginx local recusa o pedido (o servidor por omissão responde 444).
+        return $this->hostHeader !== null
+            ? $pedido->withHeaders(['Host' => $this->hostHeader])
+            : $pedido;
     }
 
     protected function logger()

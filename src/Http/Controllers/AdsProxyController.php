@@ -2,13 +2,14 @@
 
 namespace HongaYetu\InternalAdsProxy\Http\Controllers;
 
+use HongaYetu\InternalAdsProxy\DeteccaoDeRobos;
 use HongaYetu\InternalAdsProxy\Http\AdsProxyClient;
 use HongaYetu\InternalAdsProxy\Identidade;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpFoundation\Response;
 
 class AdsProxyController extends Controller
 {
@@ -114,9 +115,17 @@ class AdsProxyController extends Controller
      * 302 para o destino real do anúncio. Em caso de falha (token inválido,
      * expirado, etc) cai num fallback configurável (default: home `/`) — nunca
      * mostra erro ao utilizador final.
+     *
+     * Um robô (desde a 0.14.0) leva 404 sem se chamar a central: a central não
+     * lhe conta o clique, e seguir-lhe as ligações custava-lhe um pedido por
+     * cada uma (ver `DeteccaoDeRobos`).
      */
-    public function clickRedirect(Request $request, string $token): RedirectResponse
+    public function clickRedirect(Request $request, string $token): Response
     {
+        if (DeteccaoDeRobos::eRobo($request->userAgent())) {
+            return response('', 404, ['X-Robots-Tag' => 'noindex, nofollow']);
+        }
+
         $fallback = (string) config('ads-proxy.click_fallback_url', '/');
 
         if ($this->desligado() || $token === '') {
